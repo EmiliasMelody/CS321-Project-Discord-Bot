@@ -15,42 +15,42 @@ CREATE TABLE funusers (
     coins integer NOT NULL)"""
 #cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
-client = discord.Client()
+update_sql = "UPDATE funusers SET coins = ? where userid = ?"
+client = commands.Bot(command_prefix=".")
 
 def tester(uniqid):
     print(uniqid)
     cursor.execute("SELECT userid FROM funusers WHERE userid = {}".format(uniqid))
     result = cursor.fetchone()
     print("this is your id: {}".format(result))
-def recieve_daily(authorid):
-    cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(authorid))
-    result = cursor.fetchone()
-    cursor.execute(funuser_sql, (authorid, result[0] + 200))
-    cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(authorid))
-    result = cursor.fetchone()
-    return result
 
+@client.event
+async def on_ready():
+    print("bot is ready!")
+
+@client.command()
+async def ping(ctx):
+    await ctx.send(f'Ping is {round(client.latency * 1000)}ms')
 @client.event
 async def on_message(message):
     cursor.execute("SELECT userid FROM funusers WHERE userid = {}".format(message.author.id))
     result = cursor.fetchone()
     if result is None:
         cursor.execute(funuser_sql, (message.author.id, 0,))
-    if message.author == client.user:
-        return
-    if message.content.startswith("hello"):
-        await message.channel.send("hello!!!")
-    if message.content.startswith("$daily"):
-        dail = recieve_daily(message.author.id)
-        await message.channel.send(dail)
-@commands.cooldown(1, 86400, commands.BucketType.user)
-@bot.command()
+    await client.process_commands(message)
+@client.command()
+@commands.is_owner()
+async def shutdown(ctx):
+    connection.commit()
+    await ctx.bot.logout()
+
+@client.command()
 async def daily(ctx):
     cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
     result = cursor.fetchone()
-    cursor.execute(funuser_sql, (ctx.message.author.id, result + 200,))
+    cursor.execute(update_sql, (result[0] + 200, ctx.message.author.id))
     cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
     result = cursor.fetchone()
-    await ctx.message.channel.send("Your current total is: {}".format(result))
+    await ctx.send("your current total is: {}".format(result[0]))
 client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
 
