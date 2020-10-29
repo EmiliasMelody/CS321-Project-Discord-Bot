@@ -3,10 +3,11 @@ import sqlite3
 import random
 from discord.ext import commands
 from discord import Embed
-
+import csv
+import random
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
+    return sqlite3.connect(r'/Users/nikita/Documents/GitHub/CS321-Project-Discord-Bot\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -17,7 +18,7 @@ userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
     coins integer NOT NULL)"""
-#cursor.execute(userData)
+# cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -160,6 +161,71 @@ async def setbal(ctx, money: int):
     cursor.execute(update_sql, (money, ctx.message.author.id))
     result = getbalance(ctx)
     await ctx.send("Current bal is now: {} coins.".format(result))
+
+
+@client.command(aliases=['unscramble'])
+async def unscrambleGame(ctx):
+    embed = Embed(title="Starting unscramble game")
+    originalWord = getWord()
+    scrammbledWord = scrammble(originalWord)
+    await ctx.send(embed=embed)
+    await ctx.send("Remember to put a .guess in front of your guess!")
+    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
+
+    x = {'value': 3}
+
+    @client.command(aliases=['guess'])
+    async def unscrambleGuess(ctx, arg):
+        totalguess = x['value']
+        if arg == originalWord:
+            await ctx.channel.send("Good job you got the right word")
+            await ctx.channel.send("You won a 100 coins!")
+            result = getbalance(ctx)
+            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+            result = getbalance(ctx)
+        if arg != originalWord and totalguess != 0:
+            await ctx.channel.send("Wrong guess! Try again ")
+            x['value'] -= 1
+            totalguess = x['value']
+            await ctx.channel.send("Only {} chances left".format(totalguess))
+        if totalguess == 0:
+            await ctx.channel.send("All out of guesses! Good luck next time!")
+
+
+# used in the unscramble game gets a random word
+def getWord():
+    # gets a random word
+
+    # picks a random line number to start at
+    index = random.randint(0, 4343)
+    counter = 0
+    word = ""
+    # opens a csv file of a bunch of words
+    with open('words.csv', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if index == counter:
+                # if the counter matches the random number gets the word
+                word = row['word']
+                # if the word is too small recalls the function
+                if len(word) < 3:
+                    getWord()
+                break
+            else:
+                # increments the counter
+                counter += 1
+    print(word)
+    return word
+
+
+# used in unscramble game - scrambles the word
+def scrammble(word):
+    # scrambles the word
+    l = list(word)
+    random.shuffle(l)
+    newWord = ''.join(l)
+    print(newWord)
+    return newWord
 
 
 client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
