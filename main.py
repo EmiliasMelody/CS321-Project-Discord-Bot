@@ -6,7 +6,7 @@ from discord import Embed
 
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Connor\PycharmProjects\pythonProject\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -17,7 +17,7 @@ userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
     coins integer NOT NULL)"""
-# cursor.execute(userData)
+#cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -44,7 +44,7 @@ async def on_command_error(ctx, error):
 
 
 # pong
-@client.command()
+@client.command(brief='pong', description='tells you your ping')
 async def ping(ctx):
     await ctx.send(f'Ping is {round(client.latency * 1000)}ms')
 
