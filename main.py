@@ -6,6 +6,7 @@ from discord import Embed
 import csv
 import random
 
+
 def db_connect():
     return sqlite3.connect(r'/Users/nikita/Documents/GitHub/CS321-Project-Discord-Bot\database.sqlite3')
 
@@ -17,11 +18,12 @@ cursor = connection.cursor()
 userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
-    coins integer NOT NULL)"""
+    coins integer NOT NULL,
+    username text NOT NULL)"""
 # cursor.execute(userData)
 
-funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
-update_sql = "UPDATE funusers SET coins = ? where userid = ?"
+funuser_sql = "INSERT INTO funusers (userid,coins, username) VALUES (?, ?,?)"
+update_sql = "UPDATE funusers SET coins = ? where userid = ? where username = ?"
 client = commands.Bot(command_prefix=".")
 
 
@@ -57,7 +59,7 @@ async def on_message(message):
     cursor.execute("SELECT userid FROM funusers WHERE userid = {}".format(message.author.id))
     result = cursor.fetchone()
     if result is None:
-        cursor.execute(funuser_sql, (message.author.id, 0,))
+        cursor.execute(funuser_sql, (message.author.id, 0, message.author.name,))
     await client.process_commands(message)
 
 
@@ -65,7 +67,7 @@ async def on_message(message):
 # IMPORTANT
 # need to use it to save any coin updates
 @client.command()
-@commands.is_owner()
+@commands.has_permissions(administrator=True)
 async def shutdown(ctx):
     connection.commit()
     await ctx.bot.logout()
@@ -75,7 +77,11 @@ async def shutdown(ctx):
 @client.command()
 async def daily(ctx):
     result = getbalance(ctx)
-    cursor.execute(update_sql, (result + 200, ctx.message.author.id))
+    table = "funusers"
+    field = "coins"
+    id = ctx.message.author.id
+    money = result + 200
+    cursor.execute(("UPDATE %s SET %s = %s WHERE %s ") % (table, field, money, id))
     result = getbalance(ctx)
     embed = Embed(title="Current coin total is:", description="{}".format(result))
     await ctx.send(embed=embed)
@@ -159,9 +165,62 @@ async def dice(ctx, money: int):
 @client.command()
 @commands.has_permissions(administrator=True)
 async def setbal(ctx, money: int):
-    cursor.execute(update_sql, (money, ctx.message.author.id))
+    table = "funusers"
+    field = "coins"
+    user_id = ctx.message.author.id
+    cursor.execute("UPDATE %s SET %s = %s WHERE %s" % (table, field, money, user_id))
     result = getbalance(ctx)
-    await ctx.send("Current bal is now: {} coins.".format(result))
+    embed = Embed(title="Current bal is now: {} coins.".format(result))
+    await ctx.send(embed=embed)
+
+
+@client.command(aliases=['sendmoney'])
+async def sendMoney(ctx, arg):
+    result = getbalance(ctx)
+    newmoney = result - int(arg)
+    if (newmoney < 0):
+        embed = Embed(title="Cannot send money: Insufficient funds")
+        await ctx.send(embed=embed)
+    else:
+        embed = Embed(title="Who would you like to send money to ? \n Type .user before the user's name")
+        await ctx.send(embed=embed)
+
+    # money to add
+    x = {'value': int(arg)}
+
+    @client.command(aliases=['user'])
+    async def usertosendmoney(ctx, arg):
+        amount = x['value']
+        table = "funusers"
+        field = "coins"
+
+        # checks to see if the name exits
+        cursor.execute("SELECT * FROM funusers")
+        rows = cursor.fetchall()
+        found = 0
+        for row in rows:
+            if (row[2] == arg):
+                found = row
+        if found == 0:
+            embed = Embed(title="Cannot send money: Not a valid user")
+            await ctx.send(embed=embed)
+
+        # if the user does exist
+        else:
+            # updates the recievers account)
+            rec_id = found[0]
+            rec_money = found[1] + amount
+            cursor.execute(("UPDATE %s SET %s = %d WHERE %s") % (table, field, rec_money, rec_id))
+
+            # updates the senders account
+            send_id = ctx.message.author.id
+            send_money = getbalance(ctx) - amount
+            cursor.execute("UPDATE %s SET %s = %s WHERE %s" % (table, field, send_money, send_id))
+            result = getbalance(ctx)
+            embed = Embed(title="Current coin total is:", description="{}".format(result))
+            embed2 = Embed(title="Money sent!")
+            await ctx.send(embed=embed)
+            await ctx.send(embed=embed2)
 
 
 @client.command(aliases=['unscramble'])
@@ -172,7 +231,6 @@ async def unscrambleGame(ctx):
     embed.add_field(name="UNSCRAMBLE: ", value="{}".format(scrammbledWord), inline=False)
     await ctx.send(embed=embed)
 
-
     x = {'value': 3}
 
     @client.command(aliases=['guess'])
@@ -182,10 +240,13 @@ async def unscrambleGame(ctx):
             embed2 = Embed(title="Good job you got the right word \n You won a 100 coins! ")
             await ctx.send(embed=embed2)
             result = getbalance(ctx)
-            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+            table = "funusers"
+            field = "coins"
+            id = ctx.message.author.id
+            money = result + 100
+            cursor.execute(("UPDATE %s SET %s = %s WHERE %s ") % (table, field, money, id))
             result = getbalance(ctx)
         if arg != originalWord and totalguess != 0:
-            #await ctx.channel.send("Wrong guess! Try again ")
             x['value'] -= 1
             totalguess = x['value']
             embed3 = Embed(title="Wrong guess! Try again! \n Only {} chances left".format(totalguess))
@@ -193,7 +254,6 @@ async def unscrambleGame(ctx):
         if totalguess == 0:
             embed4 = Embed(title="All out of guesses! Good luck next time!")
             await ctx.send(embed=embed4)
-
 
 
 # used in the unscramble game gets a random word
