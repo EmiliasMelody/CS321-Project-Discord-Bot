@@ -19,6 +19,7 @@ CREATE TABLE funusers (
     userid integer PRIMARY KEY,
     coins integer NOT NULL)"""
 # cursor.execute(userData)
+
 funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -165,12 +166,12 @@ async def setbal(ctx, money: int):
 
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
-    embed = Embed(title="Starting unscramble game")
+    embed = Embed(title="Starting unscramble game: \n Remember to put a .guess in front of your guess!")
     originalWord = getWord()
     scrammbledWord = scrammble(originalWord)
+    embed.add_field(name="UNSCRAMBLE: ", value="{}".format(scrammbledWord), inline=False)
     await ctx.send(embed=embed)
-    await ctx.send("Remember to put a .guess in front of your guess!")
-    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
+
 
     x = {'value': 3}
 
@@ -178,18 +179,21 @@ async def unscrambleGame(ctx):
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
         if arg == originalWord:
-            await ctx.channel.send("Good job you got the right word")
-            await ctx.channel.send("You won a 100 coins!")
+            embed2 = Embed(title="Good job you got the right word \n You won a 100 coins! ")
+            await ctx.send(embed=embed2)
             result = getbalance(ctx)
             cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
         if arg != originalWord and totalguess != 0:
-            await ctx.channel.send("Wrong guess! Try again ")
+            #await ctx.channel.send("Wrong guess! Try again ")
             x['value'] -= 1
             totalguess = x['value']
-            await ctx.channel.send("Only {} chances left".format(totalguess))
+            embed3 = Embed(title="Wrong guess! Try again! \n Only {} chances left".format(totalguess))
+            await ctx.send(embed=embed3)
         if totalguess == 0:
-            await ctx.channel.send("All out of guesses! Good luck next time!")
+            embed4 = Embed(title="All out of guesses! Good luck next time!")
+            await ctx.send(embed=embed4)
+
 
 
 # used in the unscramble game gets a random word
