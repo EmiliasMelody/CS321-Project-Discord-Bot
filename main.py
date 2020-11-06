@@ -23,7 +23,7 @@ CREATE TABLE funusers (
 # cursor.execute(userData)
 
 funuser_sql = "INSERT INTO funusers (userid,coins, username) VALUES (?, ?,?)"
-update_sql = "UPDATE funusers SET coins = ? where userid = ? where username = ?"
+update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
 
 
@@ -175,22 +175,25 @@ async def setbal(ctx, money: int):
 
 
 @client.command(aliases=['sendmoney'])
-async def sendMoney(ctx, arg):
+async def sendMoney(ctx, arg, message_user):
+    amount = int(arg)
+    # gets the user's tag
+    tag = message_user
+    # checks if its an actual tag
+    if tag.find("!") != -1:
+        tagNumber = tag[3:len(tag) - 1]
+    else:
+        tagNumber = -99
+
     result = getbalance(ctx)
     newmoney = result - int(arg)
     if (newmoney < 0):
+        # checks if you have enough money to send
         embed = Embed(title="Cannot send money: Insufficient funds")
         await ctx.send(embed=embed)
-    else:
-        embed = Embed(title="Who would you like to send money to ? \n Type .user before the user's name")
-        await ctx.send(embed=embed)
-
-    # money to add
-    x = {'value': int(arg)}
-
-    @client.command(aliases=['user'])
-    async def usertosendmoney(ctx, arg):
-        amount = x['value']
+    elif (newmoney >= 0):
+        # checks if the user is valid
+        money = int(arg)
         table = "funusers"
         field = "coins"
 
@@ -198,19 +201,21 @@ async def sendMoney(ctx, arg):
         cursor.execute("SELECT * FROM funusers")
         rows = cursor.fetchall()
         found = 0
+        print("tag")
+        print(tagNumber)
         for row in rows:
-            if (row[2] == arg):
+            print(row)
+            if (row[0] == int(tagNumber)):
                 found = row
-        if found == 0:
+        if found == 0 or tagNumber == -99:
             embed = Embed(title="Cannot send money: Not a valid user")
             await ctx.send(embed=embed)
 
         # if the user does exist
         else:
             # updates the recievers account)
-            rec_id = found[0]
             rec_money = found[1] + amount
-            cursor.execute(("UPDATE %s SET %s = %d WHERE %s") % (table, field, rec_money, rec_id))
+            cursor.execute(("UPDATE %s SET %s = %d WHERE %s") % (table, field, rec_money, tagNumber))
 
             # updates the senders account
             send_id = ctx.message.author.id
