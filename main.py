@@ -1,6 +1,5 @@
 import discord
 import sqlite3
-import random
 from discord.ext import commands
 from discord import Embed
 import csv
@@ -8,7 +7,7 @@ import random
 
 
 def db_connect():
-    return sqlite3.connect(r'/Users/nikita/Documents/GitHub/CS321-Project-Discord-Bot\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Connor\PycharmProjects\pythonProject\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -18,13 +17,76 @@ cursor = connection.cursor()
 userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
-    coins integer NOT NULL,
-    username text NOT NULL)"""
+    coins integer NOT NULL)"""
 # cursor.execute(userData)
-
-funuser_sql = "INSERT INTO funusers (userid,coins, username) VALUES (?, ?,?)"
+funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
+
+
+class Card:
+    def __init__(self, suit, value, ace):
+        self.suit = suit
+        self.value = value
+        self.ace = ace
+
+
+class Deck:
+    def __init__(self, num=0):
+        self.cards = []
+        if num == 0:
+            self.makeDeck()
+        elif num == 1:
+            self.makeBlack()
+
+    def makeDeck(self):
+        for i in ["Spades", "Clubs", "Diamonds", "Hearts"]:
+            for v in range(1, 14):
+                if v == 1:
+                    self.cards.append(Card(i, v, True))
+                else:
+                    self.cards.append(Card(i, v, False))
+
+    def makeBlack(self):
+        for i in ["Spades", "Clubs", "Diamonds", "Hearts"]:
+            for v in range(1, 11):
+                if v == 1:
+                    self.cards.append(Card(i, v, True))
+                else:
+                    self.cards.append(Card(i, v, False))
+
+    def shuffle(self):
+        for i in range(len(self.cards) - 1, 0, -1):
+            rnum = random.randint(0, i)
+            self.cards[i], self.cards[rnum] = self.cards[rnum], self.cards[i]
+
+    def draw(self):
+        return self.cards.pop()
+
+
+class Player:
+    def __init__(self, name):
+        self.name = name
+        self.hand = []
+
+    def draw(self, deck):
+        return self.hand.append(deck.draw())
+
+    def total(self):
+        tot = 0
+        for i in self.hand:
+            tot += i.value
+        return tot
+
+    def lastCard(self):
+        return self.hand[-1]
+
+    def showHand(self):
+        x = 1
+        for i in self.hand:
+            print(f"card {x} is {i.value} of {i.suit}")
+            x += 1
+        return
 
 
 # helper function to get users balance of coins
@@ -32,6 +94,42 @@ def getbalance(ctx):
     cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
     result = cursor.fetchone()
     return result[0]
+
+
+# used in the unscramble game gets a random word
+def getWord():
+    # gets a random word
+
+    # picks a random line number to start at
+    index = random.randint(0, 4343)
+    counter = 0
+    word = ""
+    # opens a csv file of a bunch of words
+    with open('words.csv', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if index == counter:
+                # if the counter matches the random number gets the word
+                word = row['word']
+                # if the word is too small recalls the function
+                if len(word) < 3:
+                    getWord()
+                break
+            else:
+                # increments the counter
+                counter += 1
+    print(word)
+    return word
+
+
+# used in unscramble game - scrambles the word
+def scrammble(word):
+    # scrambles the word
+    l = list(word)
+    random.shuffle(l)
+    newWord = ''.join(l)
+    print(newWord)
+    return newWord
 
 
 # wait until ready before doing commands
@@ -59,7 +157,7 @@ async def on_message(message):
     cursor.execute("SELECT userid FROM funusers WHERE userid = {}".format(message.author.id))
     result = cursor.fetchone()
     if result is None:
-        cursor.execute(funuser_sql, (message.author.id, 0, message.author.name,))
+        cursor.execute(funuser_sql, (message.author.id, 0,))
     await client.process_commands(message)
 
 
@@ -67,7 +165,7 @@ async def on_message(message):
 # IMPORTANT
 # need to use it to save any coin updates
 @client.command()
-@commands.has_permissions(administrator=True)
+@commands.is_owner()
 async def shutdown(ctx):
     connection.commit()
     await ctx.bot.logout()
@@ -77,11 +175,7 @@ async def shutdown(ctx):
 @client.command()
 async def daily(ctx):
     result = getbalance(ctx)
-    table = "funusers"
-    field = "coins"
-    id = ctx.message.author.id
-    money = result + 200
-    cursor.execute(("UPDATE %s SET %s = %s WHERE %s ") % (table, field, money, id))
+    cursor.execute(update_sql, (result + 200, ctx.message.author.id))
     result = getbalance(ctx)
     embed = Embed(title="Current coin total is:", description="{}".format(result))
     await ctx.send(embed=embed)
@@ -165,13 +259,9 @@ async def dice(ctx, money: int):
 @client.command()
 @commands.has_permissions(administrator=True)
 async def setbal(ctx, money: int):
-    table = "funusers"
-    field = "coins"
-    user_id = ctx.message.author.id
-    cursor.execute("UPDATE %s SET %s = %s WHERE %s" % (table, field, money, user_id))
+    cursor.execute(update_sql, (money, ctx.message.author.id))
     result = getbalance(ctx)
-    embed = Embed(title="Current bal is now: {} coins.".format(result))
-    await ctx.send(embed=embed)
+    await ctx.send("Current bal is now: {} coins.".format(result))
 
 
 @client.command(aliases=['sendmoney'])
@@ -228,13 +318,124 @@ async def sendMoney(ctx, arg, message_user):
             await ctx.send(embed=embed2)
 
 
+@client.command(aliases=['black'])
+async def blackjack(ctx, money: int):
+    result = getbalance(ctx)
+
+    embed = Embed(title="Starting Blackjack, you are betting {}!".format(money),
+                  description="Use .black hit to get another card, .black stay to pass.")
+    await ctx.send(embed=embed)
+    deck = Deck(1)
+    deck.shuffle()
+    user = Player(ctx.message.author.id)
+    pc = Player("Bot")
+    user.draw(deck)
+    user.draw(deck)
+    pc.draw(deck)
+    pc.draw(deck)
+    embedplayer = Embed(title="Your current hand is:")
+    embedplayer.add_field(name="Card 1:", value="{} of {}".format(user.hand[0].value, user.hand[0].suit, inline=False))
+    embedplayer.add_field(name="Card 2:", value="{} of {}".format(user.hand[1].value, user.hand[1].suit, inline=False))
+    embedplayer.add_field(name="Total:", value=f"{user.total()}")
+
+    await ctx.send(embed=embedplayer)
+    q = 0
+    while q == 0:
+        if pc.total() <= 14:
+            pc.draw(deck)
+            if pc.lastCard() == 1:
+                pc.draw(deck)
+        else:
+            q = 1
+    embedbot = Embed(title="Bots cards are:")
+    embedbot.add_field(name="Card 1:", value="Hidden")
+    q = 1
+    total = 0
+    for c in pc.hand:
+        if q != 1:
+            embedbot.add_field(name="Card {}:".format(q), value=f"{c.value} of {c.suit}")
+            total += c.value
+            q += 1
+        else:
+            q += 1
+    embedbot.add_field(name=f"Bot's Total Revealed cards:", value=f"{total}")
+    await ctx.send(embed=embedbot)
+    msg = await client.wait_for('message', timeout=120.0,
+                                check=lambda message: message.author == ctx.author \
+                                                      and message.channel == ctx.channel)
+    print(msg)
+    while ".q" != msg.content:
+        if ".hit" == msg.content:
+            user.draw(deck)
+            embedplayer.remove_field(len(user.hand) + 1)
+            embedplayer.add_field(name=f"Card {len(user.hand)}",
+                                  value=f"{user.lastCard().value} of {user.lastCard().suit}")
+            embedplayer.add_field(name="Total:", value=f"{user.total()}")
+            await ctx.send(embed=embedplayer)
+            await ctx.send(embed=embedbot)
+            if user.total() > 21:
+
+                res = getbalance(ctx)
+                embedfinish = Embed(title="Game Finished. Results:")
+                embedfinish.add_field(name="Bot total:", value=f"{pc.total()}")
+                embedfinish.add_field(name="Player total:", value=f"{user.total()}")
+                if user.total() > 21 and pc.total() > 21:
+                    embedfinish.add_field(name="Nobody won!", value="try again next time")
+                elif user.total() > 21 or pc.total() > user.total():
+
+                    embedfinish.add_field(name="Bot won!", value="try again next time")
+                    cursor.execute(update_sql, (res - money, ctx.message.author.id))
+                    cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                    res = cursor.fetchone()
+                    embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+                elif pc.total() > 21 or user.total() > pc.total():
+                    embedfinish.add_field(name="Player won!", value="Great job!")
+                    cursor.execute(update_sql, (money * 3, ctx.message.author.id))
+                    cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                    res = cursor.fetchone()
+                    embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+                else:
+                    embedfinish.add_field(name="There was a tie!", value="Nobody wins!")
+                await ctx.send(embed=embedfinish)
+
+            msg.content = ".q"
+        elif ".stay" == msg.content:
+            res = getbalance(ctx)
+            embedfinish = Embed(title="Game Finished. Results:")
+            embedfinish.add_field(name="Bot total:", value=f"{pc.total()}")
+            embedfinish.add_field(name="Player total:", value=f"{user.total()}")
+            if user.total() > 21 and pc.total() > 21:
+                embedfinish.add_field(name="Nobody won!", value="try again next time")
+            elif user.total() > 21 or pc.total() > user.total():
+
+                embedfinish.add_field(name="Bot won!", value="try again next time")
+                cursor.execute(update_sql, (res - money, ctx.message.author.id))
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+            elif pc.total() > 21 or user.total() > pc.total():
+                embedfinish.add_field(name="Player won!", value="Great job!")
+                cursor.execute(update_sql, (money * 3, ctx.message.author.id))
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+            else:
+                embedfinish.add_field(name="There was a tie!", value="Nobody wins!")
+            await ctx.send(embed=embedfinish)
+            msg.content = ".q"
+        msg = await client.wait_for('message', timeout=120.0,
+                                    check=lambda message: message.author == ctx.author \
+                                                          and message.channel == ctx.channel)
+
+
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
-    embed = Embed(title="Starting unscramble game: \n Remember to put a .guess in front of your guess!")
+    embed = Embed(title="Starting unscramble game")
     originalWord = getWord()
     scrammbledWord = scrammble(originalWord)
-    embed.add_field(name="UNSCRAMBLE: ", value="{}".format(scrammbledWord), inline=False)
     await ctx.send(embed=embed)
+    await ctx.send("Remember to put a .guess in front of your guess!")
+    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
 
     x = {'value': 3}
 
@@ -242,59 +443,18 @@ async def unscrambleGame(ctx):
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
         if arg == originalWord:
-            embed2 = Embed(title="Good job you got the right word \n You won a 100 coins! ")
-            await ctx.send(embed=embed2)
+            await ctx.channel.send("Good job you got the right word")
+            await ctx.channel.send("You won a 100 coins!")
             result = getbalance(ctx)
-            table = "funusers"
-            field = "coins"
-            id = ctx.message.author.id
-            money = result + 100
-            cursor.execute(("UPDATE %s SET %s = %s WHERE %s ") % (table, field, money, id))
+            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
         if arg != originalWord and totalguess != 0:
+            await ctx.channel.send("Wrong guess! Try again ")
             x['value'] -= 1
             totalguess = x['value']
-            embed3 = Embed(title="Wrong guess! Try again! \n Only {} chances left".format(totalguess))
-            await ctx.send(embed=embed3)
+            await ctx.channel.send("Only {} chances left".format(totalguess))
         if totalguess == 0:
-            embed4 = Embed(title="All out of guesses! Good luck next time!")
-            await ctx.send(embed=embed4)
-
-
-# used in the unscramble game gets a random word
-def getWord():
-    # gets a random word
-
-    # picks a random line number to start at
-    index = random.randint(0, 4343)
-    counter = 0
-    word = ""
-    # opens a csv file of a bunch of words
-    with open('words.csv', newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            if index == counter:
-                # if the counter matches the random number gets the word
-                word = row['word']
-                # if the word is too small recalls the function
-                if len(word) < 3:
-                    getWord()
-                break
-            else:
-                # increments the counter
-                counter += 1
-    print(word)
-    return word
-
-
-# used in unscramble game - scrambles the word
-def scrammble(word):
-    # scrambles the word
-    l = list(word)
-    random.shuffle(l)
-    newWord = ''.join(l)
-    print(newWord)
-    return newWord
+            await ctx.channel.send("All out of guesses! Good luck next time!")
 
 
 client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
