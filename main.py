@@ -9,12 +9,12 @@ items = {'Balloon': (80, "Throw a water balloon at your friends", "Buy with .sho
 	'Valueable Member role': (10000, "Show off how much money you have with this vanity role", "Buy with .shop vm"), 
 	'VIP role': (50000, "Show off even more!", "Buy with .shop vip"), 
 	'Mystery Box': (100, "A mystery box that contains a random amount of coins or maybe other items", "Buy with .shop mb"), 
-	'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop dm1.5"), 
-	'Daily Multiplier (2.0x)': (2000, ",Multiplies your daily coins by 2", "Buy with .shop dm2"),
-	'Daily Multiplier (3.0x)': (5000, "Multiplies your daily coins by 3", "Buy with .shop dm3"),
-	'Global Multiplier (1.5x)': (1500, "Multiplies all coins you earn by 1.5", "Buy with .shop global1.5"),
-	'Global Multiplier (2.0x)': (3000, "Multiplies all coins you earn by 2", "Buy with .shop global2"),
-	'Global Multiplier (3.0x)': (6000, "Multiplies all coins you earn by 3", "Buy with .shop global3")}
+	'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop dm"), 
+	'Daily Multiplier (2.0x)': (2000, "Multiplies your daily coins by 2. Must have previous multiplier", "Buy with .shop dm"),
+	'Daily Multiplier (3.0x)': (5000, "Multiplies your daily coins by 3. Must have previous multiplier", "Buy with .shop dm"),
+	'Global Multiplier (1.5x)': (1500, "Multiplies all coins you earn by 1.5", "Buy with .shop global"),
+	'Global Multiplier (2.0x)': (3000, "Multiplies all coins you earn by 2. Must have previous multiplier", "Buy with .shop global"),
+	'Global Multiplier (3.0x)': (6000, "Multiplies all coins you earn by 3. Must have previous multiplier", "Buy with .shop global")}
 
 
 def db_connect():
@@ -204,9 +204,101 @@ async def shop(ctx, item=None):
 		#shop menu
 		menu=""
 		for x in items:
-			menu += str(x) + ":\n\t" + str(items[x[0]]) + " coins\n\t" + str(items[x[1]]) + "\n\t" + str(items[x[2]] + "\n\n")
+			curr = items[x]
+			menu += str(x) + ":\n" + str(curr[0]) + " coins\n" + str(curr[1])  + "\n" + str(curr[2]) + "\n\n"
 		embed = Embed(title="Shop Menu", description=menu)
 		await ctx.send(embed=embed)
+		
+	elif item == 'balloon':
+		result = getbalance(ctx)
+		if result < 80:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
+		cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+		temp = cursor.fetchone()
+		balloons = temp[0] + 1
+		cursor.execute("UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
+		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 80, ctx.message.author.id))
+		
+		result = getbalance(ctx)
+		
+		embed = Embed(title = "good job you bought a balloon", description = "Current coin total: {}\nCurrent balloon total: {}".format(result, balloons))
+		await ctx.send(embed=embed)
+
+	elif item == 'vm':
+		result = getbalance(ctx)
+		if result < 10000:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
+		cursor.execute("SELECT vm FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+		temp = cursor.fetchone()
+		if temp[0] == 1:
+			embed = Embed(title="You already have this title...")
+			await ctx.send(embed=embed)
+			return
+		cursor.execute("UPDATE funusers SET vm = {} where userid = {}".format(1, ctx.message.author.id))
+		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 10000, ctx.message.author.id))
+		
+		result = getbalance(ctx)
+		
+		embed = Embed(title = "good job you bought the valuable member role", description = "Current coin total: {}\n".format(result))
+		await ctx.send(embed=embed)
+		
+		#ACTUALLY ADD THE ROLE
+		
+		
+	elif item == 'vip':
+		result = getbalance(ctx)
+		if result < 50000:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
+		cursor.execute("SELECT vip FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+		temp = cursor.fetchone()
+		if temp[0] == 1:
+			embed = Embed(title="You already have this title...")
+			await ctx.send(embed=embed)
+			return
+		cursor.execute("UPDATE funusers SET vip = {} where userid = {}".format(1, ctx.message.author.id))
+		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 50000, ctx.message.author.id))
+		
+		result = getbalance(ctx)
+		
+		embed = Embed(title = "good job you bought the valuable member role", description = "Current coin total: {}\n".format(result))
+		await ctx.send(embed=embed)
+		
+		#ACTUALLY ADD THE ROLE
+		
+	elif item == 'mb':
+		result = getbalance(ctx)
+		if result < 100:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
+		
+		#roll to see what they get
+		
+	elif item == 'dm':
+		
+		#check which multiplier they have and see if they can afford the next
+		
+		result = getbalance(ctx)
+		if result < 80:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
+			
+	elif item == 'global':
+		
+		#check which multiplier they have and see if they can afford the next
+		
+		result = getbalance(ctx)
+		if result < 80:
+			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+			await ctx.send(embed=embed)
+			return
 	
 
 # daily coins
