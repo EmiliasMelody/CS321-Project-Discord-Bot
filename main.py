@@ -5,9 +5,11 @@ from discord import Embed
 import csv
 import random
 
+items = {'balloon': 80, 'valueableMember': 10000, 'vip': 50000, 'randomCoins': 100, 'dailyMultiplier': [1000, 2000, 5000], 'globalMultiplier': [1500, 3000, 6000]}
+
 
 def db_connect():
-    return sqlite3.connect(r'/Users/nikita/Documents/GitHub/CS321-Project-Discord-Bot\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -17,12 +19,16 @@ cursor = connection.cursor()
 userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
-    coins integer NOT NULL)"""
-#cursor.execute(userData)
-funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
+    coins integer NOT NULL),
+	balloons INTEGER,
+	vm INTEGER,
+	vip INTEGER,
+	daily REAL,
+	global REAL"""
+# cursor.execute(userData)
+funuser_sql = "INSERT INTO funusers (userid, coins, balloons, vm, vip, daily, global) VALUES (?, ?, ?, ?, ?, ?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
-
 
 class Card:
     def __init__(self, suit, value, ace):
