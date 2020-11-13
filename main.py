@@ -7,7 +7,7 @@ import random
 
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
+    return sqlite3.connect(r'/Users/nikita/Documents/GitHub/CS321-Project-Discord-Bot\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -18,7 +18,7 @@ userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
     coins integer NOT NULL)"""
-# cursor.execute(userData)
+#cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins) VALUES (?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -38,6 +38,7 @@ class Deck:
             self.makeDeck()
         elif num == 1:
             self.makeBlack()
+
 
     def makeDeck(self):
         for i in ["Spades", "Clubs", "Diamonds", "Hearts"]:
@@ -80,6 +81,18 @@ class Player:
 
     def lastCard(self):
         return self.hand[-1]
+
+    def dropCard(self):
+        return self.hand.pop()
+
+    def numcardsinHand(self):
+        x = 1
+        for i in self.hand:
+            x += 1
+        return x
+
+    def addCards(self, pile):
+        self.hand.append(pile)
 
     def showHand(self):
         x = 1
@@ -430,12 +443,26 @@ async def blackjack(ctx, money: int):
 
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
-    embed = Embed(title="Starting unscramble game")
-    originalWord = getWord(3)
-    scrammbledWord = scrammble(originalWord)
+    embedstart = Embed(title="Starting unscramble game")
+    await ctx.send(embed=embedstart)
+    embedmain = Embed(title="The Unscramble Game Costs 50 Coins")
+    firstresult = getbalance(ctx)
+    if firstresult - 50 < 0:
+        Noembed = Embed(title="Cannot play game : Insufficient funds")
+        await ctx.send(embed=Noembed)
+        return
+    cursor.execute(update_sql, (firstresult - 50 , ctx.message.author.id))
+    result = getbalance(ctx)
+    embed = Embed(title="Current coin total is:", description="{}".format(result))
     await ctx.send(embed=embed)
-    await ctx.send("Remember to put a .guess in front of your guess!")
-    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
+    embed1 = Embed(title="Starting unscramble game: \n Remember to put a .guess in front of your guess!")
+    originalWord = getWord()
+    scrammbledWord = scrammble(originalWord)
+    embed1.add_field(name="UNSCRAMBLE: ", value="{}".format(scrammbledWord), inline=False)
+    await ctx.send(embed=embed)
+    await ctx.send(embed=embedmain)
+    await ctx.send(embed=embed1)
+
 
     x = {'value': 3}
 
@@ -443,8 +470,10 @@ async def unscrambleGame(ctx):
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
         if arg == originalWord:
-            await ctx.channel.send("Good job you got the right word")
-            await ctx.channel.send("You won a 100 coins!")
+            embed1 = Embed(title="Good job you got the right word")
+            await ctx.send(embed=embed1)
+            embed2 = Embed(title="You won a 100 coins!")
+            await ctx.send(embed=embed2)
             result = getbalance(ctx)
             cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
@@ -457,90 +486,203 @@ async def unscrambleGame(ctx):
             await ctx.channel.send("All out of guesses! Good luck next time!")
 
 
-
 @client.command(brief="The classic game of hangman.", description="")
 async def hangman(ctx):
-	#checks if the user has enough coins
-	result = getbalance(ctx)
-	if result < 20:
-		embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-		await ctx.send(embed=embed)
-		return
-	cursor.execute(update_sql, (result - 20, ctx.message.author.id))
-	
-	done = 0
-	guesses = ""
-	wrongGuesses = 0
-	correctGuesses = 0
-	word = getWord(6)
-	word.lower()
-	blanks = ""
-	for x in range(len(word)):
-		blanks += "#"
-	#used later to fill in the blanks
-	blanksList = list(blanks)
-	
-	start = hangmanPrint("Game start!", wrongGuesses, blanks, guesses)
-	await ctx.send(embed = start)
-		
-	while done == 0:
-				
-		def check(m):
-			if (len(m.content) > 1):
-				return False
-			else:
-				return True
-				
-		response = await client.wait_for('message', check = check)
-				
-		msg = "" + response.content
-		
-		if len(msg) > 1:
-			embed = Embed(title="Please only guess one letter at a time")
-			await ctx.send(embed=embed)
-			continue
-		
-		if msg in guesses:
-			embed = Embed(title="You already guessed that one...")
-			await ctx.send(embed=embed)
-			continue
-				
-		guesses += msg
-		oldBlanks = blanks
-		
-		for x in range(len(word)):
-			if (word[x]) == msg:
-				correctGuesses += 1
-				blanksList[x] = msg
-		blanks = "".join(blanksList)
+    #checks if the user has enough coins
+    result = getbalance(ctx)
+    if result < 20:
+        embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+        await ctx.send(embed=embed)
+        return
+    cursor.execute(update_sql, (result - 20, ctx.message.author.id))
 
-		if wrongGuesses >= 5:
-			done = -1
-			embed = Embed(title="All out of guesses. Better luck next time!")
-			await ctx.send(embed=embed)
-			break
-		
-		if oldBlanks == blanks:
-			wrongGuesses += 1
-			embed = hangmanPrint("Incorrect Guess", wrongGuesses, blanks, guesses)
-			await ctx.send(embed=embed)
-			continue
-		
-		if correctGuesses >= len(word):
-			done = 1
-			cursor.execute(update_sql, (result + 100, ctx.message.author.id))
-			embed = hangmanPrint("Congrats, you won and earned 100 coins!", wrongGuesses, blanks, guesses)
-			await ctx.send(embed=embed)
-			break
-		else:
-			embed = hangmanPrint("Correct! Keep guessing...", wrongGuesses, blanks, guesses)
-			await ctx.send(embed=embed)
-			continue
+    done = 0
+    guesses = ""
+    wrongGuesses = 0
+    correctGuesses = 0
+    word = getWord(6)
+    word.lower()
+    blanks = ""
+    for x in range(len(word)):
+        blanks += "#"
+    #used later to fill in the blanks
+    blanksList = list(blanks)
+
+    start = hangmanPrint("Game start!", wrongGuesses, blanks, guesses)
+    await ctx.send(embed = start)
+
+    while done == 0:
+
+        def check(m):
+            if (len(m.content) > 1):
+                return False
+            else:
+                return True
+
+        response = await client.wait_for('message', check = check)
+
+        msg = "" + response.content
+
+        if len(msg) > 1:
+            embed = Embed(title="Please only guess one letter at a time")
+            await ctx.send(embed=embed)
+            continue
+
+        if msg in guesses:
+            embed = Embed(title="You already guessed that one...")
+            await ctx.send(embed=embed)
+            continue
+
+        guesses += msg
+        oldBlanks = blanks
+
+        for x in range(len(word)):
+            if (word[x]) == msg:
+                correctGuesses += 1
+                blanksList[x] = msg
+        blanks = "".join(blanksList)
+
+        if wrongGuesses >= 5:
+            done = -1
+            embed = Embed(title="All out of guesses. Better luck next time!")
+            await ctx.send(embed=embed)
+            break
+
+        if oldBlanks == blanks:
+            wrongGuesses += 1
+            embed = hangmanPrint("Incorrect Guess", wrongGuesses, blanks, guesses)
+            await ctx.send(embed=embed)
+            continue
+
+        if correctGuesses >= len(word):
+            done = 1
+            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+            embed = hangmanPrint("Congrats, you won and earned 100 coins!", wrongGuesses, blanks, guesses)
+            await ctx.send(embed=embed)
+            break
+        else:
+            embed = hangmanPrint("Correct! Keep guessing...", wrongGuesses, blanks, guesses)
+            await ctx.send(embed=embed)
+            continue
 
 def hangmanPrint(message, wrongGuesses, blanks, guesses):
-	chances = ("() () () () () ()", "(x) () () () () ()", "(x) (x) () () () ()", "(x) (x) (x) () () ()", "(x) (x) (x) (x) () ()", "(x) (x) (x) (x) (x) ()", "(x) (x) (x) (x) (x) (x)")
-	embed = Embed(title=message, description="Chances left: {}\n\nWord to guess: {}\n\nLetters guessed: {}".format(chances[wrongGuesses], blanks, guesses))
-	return embed
+    chances = ("() () () () () ()", "(x) () () () () ()", "(x) (x) () () () ()", "(x) (x) (x) () () ()", "(x) (x) (x) (x) () ()", "(x) (x) (x) (x) (x) ()", "(x) (x) (x) (x) (x) (x)")
+    embed = Embed(title=message, description="Chances left: {}\n\nWord to guess: {}\n\nLetters guessed: {}".format(chances[wrongGuesses], blanks, guesses))
+    return embed
+
+
+@client.command(aliases=['slapjack'])
+async def slapjackGame(ctx, user):
+    # gets the user's tag
+    tag = user
+    # checks if its an actual tag
+    if tag.find("!") != -1:
+        tagNumber = tag[3:len(tag) - 1]
+        tagNumber = int(tagNumber)
+    else:
+        tagNumber = -99
+    if tagNumber == -99:
+        embed = Embed(title="Cannot play game: Not a valid user")
+        await ctx.send(embed=embed)
+    else:
+        embedmain = Embed(title="The SlapJack Costs 50 Coins")
+        await ctx.send(embed=embedmain)
+        firstresult = getbalance(ctx)
+        if firstresult - 50 < 0:
+            Noembed = Embed(title="Cannot play game : Insufficient funds")
+            await ctx.send(embed=Noembed)
+            return
+        cursor.execute(update_sql, (firstresult - 50, ctx.message.author.id))
+        result = getbalance(ctx)
+        embed = Embed(title="Current coin total is:", description="{}".format(result))
+        await ctx.send(embed=embed)
+        embed1 = Embed(title="Welcome to Slap jack!",
+                       description=" Use p to put a card down. \n Use j to slap the card. \n Use q to quit \n REMEMBER 10 IS A JACK")
+        await ctx.send(embed=embed1)
+
+
+        # playing the game
+        deck = Deck(1)
+        deck.shuffle()
+        user1 = Player(ctx.message.author.id)
+        user2 = Player(tagNumber)
+
+        # splits deck in half
+        for card in range(0, 40):
+            if card % 2 == 0:
+                user1.draw(deck)
+            if card % 2 != 0:
+                user2.draw(deck)
+
+        # DELETE THIS LATER -- JUST FOR ME TO KNOW EACH PERSONS CARDS
+        #user1.showHand()
+        #print("--------------")
+        #user2.showHand()
+        # the actual game
+        cardPile = []
+
+        while user1.numcardsinHand() != 0 or user2.numcardsinHand() != 0:
+            msg = await client.wait_for('message', timeout=60.0)
+            # gets a card from that users pile
+            if msg.content == "p":
+                if msg.author.id == user1.name:
+                    print("USER 1")
+                    card = user1.dropCard()
+                if msg.author.id == user2.name:
+                    print("USER 2")
+                    card = user2.dropCard()
+                # shows card in discord
+                cardPile.append(card)
+                embed = Embed(title=f"card is {card.value} of {card.suit}")
+                await ctx.send(embed=embed)
+                #looks for a slap
+                msg2 = await client.wait_for('message', timeout=2.0)
+                if msg2.content == "j":
+                    if card.value == 10:
+                        embed = Embed(title="GOOD JOB, YOU GOT THE JACK...")
+                        embed2 = Embed(title="you get all the cards in the pile")
+                        if msg2.author.id == user1.name:
+                            user1.addCards(cardPile)
+                        if msg2.author.id == user2.name:
+                            user2.addCards(cardPile)
+                        cardPile = []
+                        await ctx.send(embed=embed)
+                        await ctx.send(embed=embed2)
+
+                    else:
+                        embed = Embed(title="WOOPS, THAT'S NOT A JACK")
+                        embed2 = Embed(title= "adding 2 cards into the pile")
+                        if msg2.author.id == user1.name:
+                            cardPile.append(user1.dropCard())
+                            cardPile.append(user1.dropCard())
+                        if msg2.author.id == user2.name:
+                            cardPile.append(user2.dropCard())
+                            cardPile.append(user2.dropCard())
+                        await ctx.send(embed=embed)
+                        await ctx.send(embed=embed2)
+                    # CARDS LEFT
+                    embeduser1 = Embed(title="{}: you have {} cards left".format(user1.name, user1.numcardsinHand()))
+                    embeduser2 = Embed(title="{}: you have {} cards left".format(user2.name, user2.numcardsinHand()))
+                    await ctx.send(embed=embeduser1)
+                    await ctx.send(embed=embeduser2)
+                    # if someone has no cards left - the game is over
+                    if user1.numcardsinHand() == 0 or user2.numcardsinHand():
+                        if user1.numcardsinHand() == 0:
+                            winner = user2.name
+                        elif user2.numcardsinHand() == 0:
+                            winner = user1.name
+                        embedwinner = Embed(title="Congrats {} Won the Game".format(winner))
+                        await ctx.send(embed=embedwinner)
+                        embed2 = Embed(title="You won a 100 coins!")
+                        await ctx.send(embed=embed2)
+                        # add money to winner
+                        cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
+                        ans = cursor.fetchone()
+                        result = ans[0]
+                        cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+
+            #if msg.content == "q":
+             #   # do the quit stuff
 
 
 
