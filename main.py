@@ -19,12 +19,12 @@ cursor = connection.cursor()
 userData = """
 CREATE TABLE funusers (
     userid integer PRIMARY KEY,
-    coins integer NOT NULL),
+    coins integer NOT NULL,
 	balloons INTEGER,
 	vm INTEGER,
 	vip INTEGER,
 	daily REAL,
-	global REAL"""
+	global REAL)"""
 # cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins, balloons, vm, vip, daily, global) VALUES (?, ?, ?, ?, ?, ?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
