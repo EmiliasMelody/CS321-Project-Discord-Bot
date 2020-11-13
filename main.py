@@ -7,7 +7,7 @@ import random
 
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Connor\PycharmProjects\pythonProject\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -97,11 +97,11 @@ def getbalance(ctx):
 
 
 # used in the unscramble game gets a random word
-def getWord():
+def getWord(minLength):
     # gets a random word
 
     # picks a random line number to start at
-    index = random.randint(0, 4343)
+    index = random.randint(0, 4341)
     counter = 0
     word = ""
     # opens a csv file of a bunch of words
@@ -112,7 +112,7 @@ def getWord():
                 # if the counter matches the random number gets the word
                 word = row['word']
                 # if the word is too small recalls the function
-                if len(word) < 3:
+                if len(word) < minLength:
                     getWord()
                 break
             else:
@@ -165,7 +165,7 @@ async def on_message(message):
 # IMPORTANT
 # need to use it to save any coin updates
 @client.command()
-@commands.is_owner()
+@commands.has_permissions(administrator=True)
 async def shutdown(ctx):
     connection.commit()
     await ctx.bot.logout()
@@ -431,7 +431,7 @@ async def blackjack(ctx, money: int):
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
     embed = Embed(title="Starting unscramble game")
-    originalWord = getWord()
+    originalWord = getWord(3)
     scrammbledWord = scrammble(originalWord)
     await ctx.send(embed=embed)
     await ctx.send("Remember to put a .guess in front of your guess!")
@@ -455,6 +455,93 @@ async def unscrambleGame(ctx):
             await ctx.channel.send("Only {} chances left".format(totalguess))
         if totalguess == 0:
             await ctx.channel.send("All out of guesses! Good luck next time!")
+
+
+
+@client.command(brief="The classic game of hangman.", description="")
+async def hangman(ctx):
+	#checks if the user has enough coins
+	result = getbalance(ctx)
+	if result < 20:
+		embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+		await ctx.send(embed=embed)
+		return
+	cursor.execute(update_sql, (result - 20, ctx.message.author.id))
+	
+	done = 0
+	guesses = ""
+	wrongGuesses = 0
+	correctGuesses = 0
+	word = getWord(6)
+	word.lower()
+	blanks = ""
+	for x in range(len(word)):
+		blanks += "#"
+	#used later to fill in the blanks
+	blanksList = list(blanks)
+	
+	start = hangmanPrint("Game start!", wrongGuesses, blanks, guesses)
+	await ctx.send(embed = start)
+		
+	while done == 0:
+				
+		def check(m):
+			if (len(m.content) > 1):
+				return False
+			else:
+				return True
+				
+		response = await client.wait_for('message', check = check)
+				
+		msg = "" + response.content
+		
+		if len(msg) > 1:
+			embed = Embed(title="Please only guess one letter at a time")
+			await ctx.send(embed=embed)
+			continue
+		
+		if msg in guesses:
+			embed = Embed(title="You already guessed that one...")
+			await ctx.send(embed=embed)
+			continue
+				
+		guesses += msg
+		oldBlanks = blanks
+		
+		for x in range(len(word)):
+			if (word[x]) == msg:
+				correctGuesses += 1
+				blanksList[x] = msg
+		blanks = "".join(blanksList)
+
+		if wrongGuesses >= 5:
+			done = -1
+			embed = Embed(title="All out of guesses. Better luck next time!")
+			await ctx.send(embed=embed)
+			break
+		
+		if oldBlanks == blanks:
+			wrongGuesses += 1
+			embed = hangmanPrint("Incorrect Guess", wrongGuesses, blanks, guesses)
+			await ctx.send(embed=embed)
+			continue
+		
+		if correctGuesses >= len(word):
+			done = 1
+			cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+			embed = hangmanPrint("Congrats, you won and earned 100 coins!", wrongGuesses, blanks, guesses)
+			await ctx.send(embed=embed)
+			break
+		else:
+			embed = hangmanPrint("Correct! Keep guessing...", wrongGuesses, blanks, guesses)
+			await ctx.send(embed=embed)
+			continue
+
+def hangmanPrint(message, wrongGuesses, blanks, guesses):
+	chances = ("() () () () () ()", "(x) () () () () ()", "(x) (x) () () () ()", "(x) (x) (x) () () ()", "(x) (x) (x) (x) () ()", "(x) (x) (x) (x) (x) ()", "(x) (x) (x) (x) (x) (x)")
+	embed = Embed(title=message, description="Chances left: {}\n\nWord to guess: {}\n\nLetters guessed: {}".format(chances[wrongGuesses], blanks, guesses))
+	return embed
+
 
 
 client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
