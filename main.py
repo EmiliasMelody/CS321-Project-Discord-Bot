@@ -797,10 +797,52 @@ async def slapjackGame(ctx, user):
                         ans = cursor.fetchone()
                         result = ans[0]
                         cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+            if msg.content == "q":
+                if user1.numcardsinHand() < user2.numcardsinHand():
+                        winner = user2.name
+                elif user1.numcardsinHand() > user2.numcardsinHand():
+                        winner = user1.name
+                embedwinner = Embed(title="Congrats {} Won the Game".format(winner))
+                await ctx.send(embed=embedwinner)
+                embed2 = Embed(title="You won a 100 coins!")
+                await ctx.send(embed=embed2)
+                # add money to winner
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
+                ans = cursor.fetchone()
+                result = ans[0]
+                cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+                return
 
-            #if msg.content == "q":
-             #   # do the quit stuff
+@client.command(aliases=['throwballoon'])
+async def throwwaterballoon(ctx, user):
+    # gets the user's tag
+    tag = user
+    # checks if its an actual tag
+    if tag.find("!") != -1:
+        tagNumber = tag[3:len(tag) - 1]
+        tagNumber = int(tagNumber)
+    else:
+        tagNumber = -99
+    if tagNumber == -99:
+        embed = Embed(title="Cannot throw balloon: Not a valid user")
+        await ctx.send(embed=embed)
+        return
+    # check if the user has a balloon
 
+    cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+    temp = cursor.fetchone()
+    if (temp[0] == 0):
+        embed = Embed(title="Cannot throw balloon: User does not own any balloons")
+        await ctx.send(embed=embed)
+        return
+
+    # if user has balloon decrements number of balloons a user has
+    balloons = temp[0] - 1
+    cursor.execute("UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
+
+    # actually throwing a balloon at someone
+    await ctx.send(f"PONG {user}")
+    await ctx.send(file=discord.File('waterballoon.gif'))
 
 
 client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
