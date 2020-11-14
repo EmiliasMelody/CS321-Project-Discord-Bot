@@ -1,24 +1,27 @@
+import asyncio
+
 import discord
+from discord.utils import get
 import sqlite3
 from discord.ext import commands
 from discord import Embed
 import csv
 import random
 
-items = {'Balloon': (80, "Throw a water balloon at your friends", "Buy with .shop balloon"), 
-	'Valueable Member role': (10000, "Show off how much money you have with this vanity role", "Buy with .shop vm"), 
-	'VIP role': (50000, "Show off even more!", "Buy with .shop vip"), 
-	'Mystery Box': (100, "A mystery box that contains a random amount of coins or maybe other items", "Buy with .shop mb"), 
-	'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop dm"), 
-	'Daily Multiplier (2.0x)': (2000, "Multiplies your daily coins by 2. Must have previous multiplier", "Buy with .shop dm"),
-	'Daily Multiplier (3.0x)': (5000, "Multiplies your daily coins by 3. Must have previous multiplier", "Buy with .shop dm"),
+items = {'Balloon': (80, "Throw a water balloon at your friends", "Buy with .shop balloon"),
+	'Valueable Member role': (10000, "Show off how much money you have with this vanity role", "Buy with .shop vm"),
+	'VIP role': (50000, "Show off even more!", "Buy with .shop vip"),
+	'Mystery Box': (100, "A mystery box that contains a random amount of coins or maybe other items", "Buy with .shop mb"),
+	'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop daily"),
+	'Daily Multiplier (2.0x)': (2000, "Multiplies your daily coins by 2. Must have previous multiplier", "Buy with .shop daily"),
+	'Daily Multiplier (3.0x)': (5000, "Multiplies your daily coins by 3. Must have previous multiplier", "Buy with .shop daily"),
 	'Global Multiplier (1.5x)': (1500, "Multiplies all coins you earn by 1.5", "Buy with .shop global"),
 	'Global Multiplier (2.0x)': (3000, "Multiplies all coins you earn by 2. Must have previous multiplier", "Buy with .shop global"),
 	'Global Multiplier (3.0x)': (6000, "Multiplies all coins you earn by 3. Must have previous multiplier", "Buy with .shop global")}
 
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Connor\PycharmProjects\pythonProject\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -39,6 +42,7 @@ funuser_sql = "INSERT INTO funusers (userid, coins, balloons, vm, vip, daily, gl
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
 
+
 class Card:
     def __init__(self, suit, value, ace):
         self.suit = suit
@@ -53,7 +57,6 @@ class Deck:
             self.makeDeck()
         elif num == 1:
             self.makeBlack()
-
 
     def makeDeck(self):
         for i in ["Spades", "Clubs", "Diamonds", "Hearts"]:
@@ -97,6 +100,16 @@ class Player:
     def lastCard(self):
         return self.hand[-1]
 
+    def topCard(self):
+        return self.hand[0]
+
+    def showHand(self):
+        x = 1
+        for i in self.hand:
+            print(f"card {x} is {i.value} of {i.suit}")
+            x += 1
+        return
+
     def dropCard(self):
         return self.hand.pop()
 
@@ -108,14 +121,6 @@ class Player:
 
     def addCards(self, pile):
         self.hand.append(pile)
-
-    def showHand(self):
-        x = 1
-        for i in self.hand:
-            print(f"card {x} is {i.value} of {i.suit}")
-            x += 1
-        return
-
 
 # helper function to get users balance of coins
 def getbalance(ctx):
@@ -141,7 +146,7 @@ def getWord(minLength):
                 word = row['word']
                 # if the word is too small recalls the function
                 if len(word) < minLength:
-                    getWord()
+                    getWord(1)
                 break
             else:
                 # increments the counter
@@ -166,11 +171,15 @@ async def on_ready():
     print("bot is ready!")
 
 
+
 # for errors
 @client.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("Please pass all required arguements. Type .help to get a list of commands and their usage.")
+
+    if isinstance(error, asyncio.TimeoutError):
+        await ctx.send("Command Timeout.")
 
 
 # pong
@@ -193,113 +202,11 @@ async def on_message(message):
 # IMPORTANT
 # need to use it to save any coin updates
 @client.command()
-@commands.has_permissions(administrator=True)
+@commands.is_owner()
 async def shutdown(ctx):
     connection.commit()
     await ctx.bot.logout()
 
-@client.command(aliases=['buy'])
-async def shop(ctx, item=None):
-	if item is None:
-		#shop menu
-		menu=""
-		for x in items:
-			curr = items[x]
-			menu += str(x) + ":\n" + str(curr[0]) + " coins\n" + str(curr[1])  + "\n" + str(curr[2]) + "\n\n"
-		embed = Embed(title="Shop Menu", description=menu)
-		await ctx.send(embed=embed)
-		
-	elif item == 'balloon':
-		result = getbalance(ctx)
-		if result < 80:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-		cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
-		temp = cursor.fetchone()
-		balloons = temp[0] + 1
-		cursor.execute("UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
-		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 80, ctx.message.author.id))
-		
-		result = getbalance(ctx)
-		
-		embed = Embed(title = "good job you bought a balloon", description = "Current coin total: {}\nCurrent balloon total: {}".format(result, balloons))
-		await ctx.send(embed=embed)
-
-	elif item == 'vm':
-		result = getbalance(ctx)
-		if result < 10000:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-		cursor.execute("SELECT vm FROM funusers WHERE userid = {}".format(ctx.message.author.id))
-		temp = cursor.fetchone()
-		if temp[0] == 1:
-			embed = Embed(title="You already have this title...")
-			await ctx.send(embed=embed)
-			return
-		cursor.execute("UPDATE funusers SET vm = {} where userid = {}".format(1, ctx.message.author.id))
-		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 10000, ctx.message.author.id))
-		
-		result = getbalance(ctx)
-		
-		embed = Embed(title = "good job you bought the valuable member role", description = "Current coin total: {}\n".format(result))
-		await ctx.send(embed=embed)
-		
-		#ACTUALLY ADD THE ROLE
-		
-		
-	elif item == 'vip':
-		result = getbalance(ctx)
-		if result < 50000:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-		cursor.execute("SELECT vip FROM funusers WHERE userid = {}".format(ctx.message.author.id))
-		temp = cursor.fetchone()
-		if temp[0] == 1:
-			embed = Embed(title="You already have this title...")
-			await ctx.send(embed=embed)
-			return
-		cursor.execute("UPDATE funusers SET vip = {} where userid = {}".format(1, ctx.message.author.id))
-		cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 50000, ctx.message.author.id))
-		
-		result = getbalance(ctx)
-		
-		embed = Embed(title = "good job you bought the valuable member role", description = "Current coin total: {}\n".format(result))
-		await ctx.send(embed=embed)
-		
-		#ACTUALLY ADD THE ROLE
-		
-	elif item == 'mb':
-		result = getbalance(ctx)
-		if result < 100:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-		
-		#roll to see what they get
-		
-	elif item == 'dm':
-		
-		#check which multiplier they have and see if they can afford the next
-		
-		result = getbalance(ctx)
-		if result < 80:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-			
-	elif item == 'global':
-		
-		#check which multiplier they have and see if they can afford the next
-		
-		result = getbalance(ctx)
-		if result < 80:
-			embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
-			await ctx.send(embed=embed)
-			return
-	
 
 # daily coins
 @client.command()
@@ -407,11 +314,11 @@ async def sendMoney(ctx, arg, message_user):
 
     result = getbalance(ctx)
     newmoney = result - int(arg)
-    if (newmoney < 0):
+    if newmoney < 0:
         # checks if you have enough money to send
         embed = Embed(title="Cannot send money: Insufficient funds")
         await ctx.send(embed=embed)
-    elif (newmoney >= 0):
+    elif newmoney >= 0:
         # checks if the user is valid
         money = int(arg)
         table = "funusers"
@@ -425,7 +332,7 @@ async def sendMoney(ctx, arg, message_user):
         print(tagNumber)
         for row in rows:
             print(row)
-            if (row[0] == int(tagNumber)):
+            if row[0] == int(tagNumber):
                 found = row
         if found == 0 or tagNumber == -99:
             embed = Embed(title="Cannot send money: Not a valid user")
@@ -435,7 +342,7 @@ async def sendMoney(ctx, arg, message_user):
         else:
             # updates the recievers account)
             rec_money = found[1] + amount
-            cursor.execute(("UPDATE %s SET %s = %d WHERE %s") % (table, field, rec_money, tagNumber))
+            cursor.execute("UPDATE %s SET %s = %d WHERE %s" % (table, field, rec_money, tagNumber))
 
             # updates the senders account
             send_id = ctx.message.author.id
@@ -448,9 +355,284 @@ async def sendMoney(ctx, arg, message_user):
             await ctx.send(embed=embed2)
 
 
+@client.command()
+async def war(ctx, money, message_user=None):
+    deck = Deck(0)
+    deck.shuffle()
+    if message_user is None:
+        result = getbalance(ctx)
+        if result < money:
+            await ctx.send("Not enough coins in your bank! Sorry!")
+            return
+        embedt = Embed(title=f"Game of War, you are betting {money}",
+                       description="Use .flip to flip a card, and .q to quit."
+                                   "only the person who started the game needs to use .flip")
+        await ctx.send(embed=embedt)
+        playerwins = []
+        npcwins = []
+        playerone = Player(ctx.message.author.id)
+        npc = Player("Bot")
+        while deck.cards[0] is not None:
+            playerone.draw(deck)
+            npc.draw(deck)
+        msg = await client.wait_for('message', timeout=120.0,
+                                    check=lambda message: message.author == ctx.author \
+                                                          and message.channel == ctx.channel)
+        victor = 0
+        while ".q" != msg.content:
+            if ".flip" == msg.content:
+
+                # next two statements deal with if the player/bot's hand is empty
+                if playerone.topCard() is None:
+                    # this means player one still has cards in bank
+                    if playerwins[0] is not None:
+                        while playerwins[0] is not None:
+                            playerone.hand.append(playerwins.pop())
+                    # this means that playerone lost
+                    else:
+                        victor = 2
+                        break
+                if npc.topCard() is None:
+                    # this means player one still has cards in bank
+                    if npcwins[0] is not None:
+                        while npcwins[0] is not None:
+                            npc.hand.append(npcwins.pop())
+                    # this means that playerone lost
+                    else:
+                        victor = 1
+                        break
+
+                # deals with actual game play
+                playercard = playerone.topCard()
+                npccard = npc.topCard()
+                if playercard.value < npccard.value:
+                    npcwins.append(npc.hand.pop(0))
+                    npcwins.append(playerone.hand.pop(0))
+                    gameembed = Embed(title="War!", description="The bot won this round!")
+                    gameembed.add_field(name="Player's Card:", value=f"{playercard.value} of {playercard.suit}")
+                    gameembed.add_field(name="Bot's Card:", value=f"{npccard.value} of {npccard.suit}")
+                    await ctx.send(embed=gameembed)
+                elif playercard.value > npccard.value:
+                    playerwins.append(npc.hand.pop(0))
+                    playerwins.append(playerone.hand.pop(0))
+                    gameembed = Embed(title="War!", description="The player won this round!")
+                    gameembed.add_field(name="Player's Card:", value=f"{playercard.value} of {playercard.suit}")
+                    gameembed.add_field(name="Bot's Card:", value=f"{npccard.value} of {npccard.suit}")
+                    await ctx.send(embed=gameembed)
+                # for ties, will keep flipping one card until no more tie.
+                else:
+                    gameembed = Embed(title="War!", description="There was a tie!")
+                    gameembed.add_field(name="Player's Card:", value=f"{playercard.value} of {playercard.suit}")
+                    gameembed.add_field(name="Bot's Card:", value=f"{npccard.value} of {npccard.suit}")
+                    qui = True
+                    count = 0
+                    while qui is True:
+                        count += 1
+                        playercard = playerone.hand[count]
+                        npccard = npc.hand[count]
+                        if playercard.value < npccard.value:
+                            i = 0
+                            while i <= count:
+                                npcwins.append(npc.hand.pop(0))
+                                npcwins.append(playerone.hand.pop(0))
+                            gameembed = Embed(title="War!", description="The bot won this round!"
+                                                                        " All cards go to it!")
+                            gameembed.add_field(name="Player's Card:", value=f"{playercard.value} of {playercard.suit}")
+                            gameembed.add_field(name="Bot's Card:", value=f"{npccard.value} of {npccard.suit}")
+                            await ctx.send(embed=gameembed)
+                            qui = False
+                        elif playercard.value > npccard.value:
+                            i = 0
+                            while i <= count:
+                                npcwins.append(npc.hand.pop(0))
+                                npcwins.append(playerone.hand.pop(0))
+                            playerwins.append(npc.hand.pop(0))
+                            playerwins.append(playerone.hand.pop(0))
+                            gameembed = Embed(title="War!", description="The player won this round!"
+                                                                        " All cards go to them")
+                            gameembed.add_field(name="Player's Card:", value=f"{playercard.value} of {playercard.suit}")
+                            gameembed.add_field(name="Bot's Card:", value=f"{npccard.value} of {npccard.suit}")
+                            await ctx.send(embed=gameembed)
+                            qui = False
+
+        # now the finish message for when the game is over
+        if victor == 1:
+            res = getbalance(ctx)
+            embedfinish = Embed(title="Game over!", description="The player has won!")
+            cursor.execute(update_sql, (res + money, ctx.message.author.id))
+            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+            res = cursor.fetchone()
+            embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+            await ctx.send(embed=embedfinish)
+        elif victor == 2:
+            res = getbalance(ctx)
+            embedfinish = Embed(title="Game over!", description="The bot has won!")
+            cursor.execute(update_sql, (res - money, ctx.message.author.id))
+            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+            res = cursor.fetchone()
+            embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
+            await ctx.send(embed=embedfinish)
+
+    ###################################################################################################################
+    # below is all code for if there is a second player, not a bot. #
+    # Almost identical except slight changes to how money is taken for both accounts. #
+    ###################################################################################################################
+    else:
+        result = getbalance(ctx)
+        if result < money:
+            await ctx.send("Not enough coins in Player 1's bank! Sorry!")
+            return
+        if message_user.find("!") != -1:
+            tagNumber = message_user[3:len(message_user) - 1]
+        else:
+            tagNumber = -99
+        # checks to see if the name exits
+        cursor.execute("SELECT * FROM funusers")
+        rows = cursor.fetchall()
+        found = 0
+        for row in rows:
+            if row[0] == int(tagNumber):
+                found = row
+        if found == 0 or tagNumber == -99:
+            embed = Embed(title="Cannot Start Game: Not a valid user")
+            await ctx.send(embed=embed)
+
+        cursor.execute(f"SELECT coins FROM funusers WHERE userid = {tagNumber}")
+        res = cursor.fetchone()
+        if res[0] < money:
+            await ctx.send("Not enough coins in Player 2's bank! Sorry!")
+            return
+        # start the actual game
+        else:
+            embedt = Embed(title=f"Game of War, you are betting {money}",
+                           description="Use .flip to flip a card, and .q to quit."
+                                       "only the person who started the game needs to use .flip")
+            await ctx.send(embed=embedt)
+            playerwins = []
+            npcwins = []
+            playerone = Player(ctx.message.author.id)
+            npc = Player(tagNumber)
+            while deck.cards[0] is not None:
+                playerone.draw(deck)
+                npc.draw(deck)
+            msg = await client.wait_for('message', timeout=120.0,
+                                        check=lambda message: message.author == ctx.author \
+                                                              and message.channel == ctx.channel)
+            victor = 0
+            while ".q" != msg.content:
+                if ".flip" == msg.content:
+
+                    # next two statements deal with if the player/bot's hand is empty
+                    if playerone.topCard() is None:
+                        # this means player one still has cards in bank
+                        if playerwins[0] is not None:
+                            while playerwins[0] is not None:
+                                playerone.hand.append(playerwins.pop())
+                        # this means that playerone lost
+                        else:
+                            victor = 2
+                            break
+                    if npc.topCard() is None:
+                        # this means player one still has cards in bank
+                        if npcwins[0] is not None:
+                            while npcwins[0] is not None:
+                                npc.hand.append(npcwins.pop())
+                        # this means that playerone lost
+                        else:
+                            victor = 1
+                            break
+
+                    # deals with actual game play
+                    playercard = playerone.topCard()
+                    npccard = npc.topCard()
+                    if playercard.value < npccard.value:
+                        npcwins.append(npc.hand.pop(0))
+                        npcwins.append(playerone.hand.pop(0))
+                        gameembed = Embed(title="War!", description="Player 2 has won this round!")
+                        gameembed.add_field(name="Player 1's Card:", value=f"{playercard.value} of {playercard.suit}")
+                        gameembed.add_field(name="Player 2's Card:", value=f"{npccard.value} of {npccard.suit}")
+                        await ctx.send(embed=gameembed)
+                    elif playercard.value > npccard.value:
+                        playerwins.append(npc.hand.pop(0))
+                        playerwins.append(playerone.hand.pop(0))
+                        gameembed = Embed(title="War!", description="Player 1 has won this round!")
+                        gameembed.add_field(name="Player 1's Card:", value=f"{playercard.value} of {playercard.suit}")
+                        gameembed.add_field(name="Player 2's Card:", value=f"{npccard.value} of {npccard.suit}")
+                        await ctx.send(embed=gameembed)
+                    # for ties, will keep flipping one card until no more tie.
+                    else:
+                        gameembed = Embed(title="War!", description="There was a tie!")
+                        gameembed.add_field(name="Player 1's Card:", value=f"{playercard.value} of {playercard.suit}")
+                        gameembed.add_field(name="Player 2's Card:", value=f"{npccard.value} of {npccard.suit}")
+                        qui = True
+                        count = 0
+                        while qui is True:
+                            count += 1
+                            playercard = playerone.hand[count]
+                            npccard = npc.hand[count]
+                            if playercard.value < npccard.value:
+                                i = 0
+                                while i <= count:
+                                    npcwins.append(npc.hand.pop(0))
+                                    npcwins.append(playerone.hand.pop(0))
+                                gameembed = Embed(title="War!", description="Player 2 has won this round!"
+                                                                            " All cards go to them!")
+                                gameembed.add_field(name="Player 1's Card:",
+                                                    value=f"{playercard.value} of {playercard.suit}")
+                                gameembed.add_field(name="Player 2's Card:", value=f"{npccard.value} of {npccard.suit}")
+                                await ctx.send(embed=gameembed)
+                                qui = False
+                            elif playercard.value > npccard.value:
+                                i = 0
+                                while i <= count:
+                                    npcwins.append(npc.hand.pop(0))
+                                    npcwins.append(playerone.hand.pop(0))
+                                playerwins.append(npc.hand.pop(0))
+                                playerwins.append(playerone.hand.pop(0))
+                                gameembed = Embed(title="War!", description="Player 1 has won this round!"
+                                                                            " All cards go to them")
+                                gameembed.add_field(name="Player 1's Card:",
+                                                    value=f"{playercard.value} of {playercard.suit}")
+                                gameembed.add_field(name="Player 2's Card:",
+                                                    value=f"{npccard.value} of {npccard.suit}")
+                                await ctx.send(embed=gameembed)
+                                qui = False
+
+            # now the finish message for when the game is over
+            if victor == 1:
+                res = getbalance(ctx)
+                rec_money = found[1] - money
+                embedfinish = Embed(title="Game over!", description="Player 1 has won!")
+                cursor.execute(update_sql, (res + money, ctx.message.author.id))
+                cursor.execute(f"UPDATE funusers SET coins = {rec_money} WHERE {tagNumber}")
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance Player 1:", value="{}".format(res[0]), inline=False)
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(tagNumber))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance Player 2:", value="{}".format(res[0]), inline=False)
+                await ctx.send(embed=embedfinish)
+            elif victor == 2:
+                res = getbalance(ctx)
+                rec_money = found[1] + money
+                embedfinish = Embed(title="Game over!", description="Player 2 has won!")
+                cursor.execute(update_sql, (res - money, ctx.message.author.id))
+                cursor.execute(f"UPDATE funusers SET coins = {rec_money} WHERE {tagNumber}")
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance Player 1:", value="{}".format(res[0]), inline=False)
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(tagNumber))
+                res = cursor.fetchone()
+                embedfinish.add_field(name="New Balance Player 2:", value="{}".format(res[0]), inline=False)
+                await ctx.send(embed=embedfinish)
+
+
 @client.command(aliases=['black'])
 async def blackjack(ctx, money: int):
     result = getbalance(ctx)
+    if result < money:
+        ctx.send("Not enough coins in your bank! Sorry!")
+        return
 
     embed = Embed(title="Starting Blackjack, you are betting {}!".format(money),
                   description="Use .black hit to get another card, .black stay to pass.")
@@ -520,7 +702,7 @@ async def blackjack(ctx, money: int):
                     embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
                 elif pc.total() > 21 or user.total() > pc.total():
                     embedfinish.add_field(name="Player won!", value="Great job!")
-                    cursor.execute(update_sql, (money * 3, ctx.message.author.id))
+                    cursor.execute(update_sql, (res + money, ctx.message.author.id))
                     cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
                     res = cursor.fetchone()
                     embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
@@ -545,7 +727,7 @@ async def blackjack(ctx, money: int):
                 embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
             elif pc.total() > 21 or user.total() > pc.total():
                 embedfinish.add_field(name="Player won!", value="Great job!")
-                cursor.execute(update_sql, (money * 3, ctx.message.author.id))
+                cursor.execute(update_sql, (res + money, ctx.message.author.id))
                 cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
                 res = cursor.fetchone()
                 embedfinish.add_field(name="New Balance:", value="{}".format(res[0]), inline=False)
@@ -560,26 +742,12 @@ async def blackjack(ctx, money: int):
 
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
-    embedstart = Embed(title="Starting unscramble game")
-    await ctx.send(embed=embedstart)
-    embedmain = Embed(title="The Unscramble Game Costs 50 Coins")
-    firstresult = getbalance(ctx)
-    if firstresult - 50 < 0:
-        Noembed = Embed(title="Cannot play game : Insufficient funds")
-        await ctx.send(embed=Noembed)
-        return
-    cursor.execute(update_sql, (firstresult - 50 , ctx.message.author.id))
-    result = getbalance(ctx)
-    embed = Embed(title="Current coin total is:", description="{}".format(result))
-    await ctx.send(embed=embed)
-    embed1 = Embed(title="Starting unscramble game: \n Remember to put a .guess in front of your guess!")
-    originalWord = getWord()
+    embed = Embed(title="Starting unscramble game")
+    originalWord = getWord(1)
     scrammbledWord = scrammble(originalWord)
-    embed1.add_field(name="UNSCRAMBLE: ", value="{}".format(scrammbledWord), inline=False)
     await ctx.send(embed=embed)
-    await ctx.send(embed=embedmain)
-    await ctx.send(embed=embed1)
-
+    await ctx.send("Remember to put a .guess in front of your guess!")
+    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
 
     x = {'value': 3}
 
@@ -587,10 +755,8 @@ async def unscrambleGame(ctx):
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
         if arg == originalWord:
-            embed1 = Embed(title="Good job you got the right word")
-            await ctx.send(embed=embed1)
-            embed2 = Embed(title="You won a 100 coins!")
-            await ctx.send(embed=embed2)
+            await ctx.channel.send("Good job you got the right word")
+            await ctx.channel.send("You won a 100 coins!")
             result = getbalance(ctx)
             cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
@@ -605,7 +771,7 @@ async def unscrambleGame(ctx):
 
 @client.command(brief="The classic game of hangman.", description="")
 async def hangman(ctx):
-    #checks if the user has enough coins
+    # checks if the user has enough coins
     result = getbalance(ctx)
     if result < 20:
         embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
@@ -622,11 +788,11 @@ async def hangman(ctx):
     blanks = ""
     for x in range(len(word)):
         blanks += "#"
-    #used later to fill in the blanks
+    # used later to fill in the blanks
     blanksList = list(blanks)
 
     start = hangmanPrint("Game start!", wrongGuesses, blanks, guesses)
-    await ctx.send(embed = start)
+    await ctx.send(embed=start)
 
     while done == 0:
 
@@ -636,7 +802,7 @@ async def hangman(ctx):
             else:
                 return True
 
-        response = await client.wait_for('message', check = check)
+        response = await client.wait_for('message', check=check)
 
         msg = "" + response.content
 
@@ -682,9 +848,14 @@ async def hangman(ctx):
             await ctx.send(embed=embed)
             continue
 
+
 def hangmanPrint(message, wrongGuesses, blanks, guesses):
-    chances = ("() () () () () ()", "(x) () () () () ()", "(x) (x) () () () ()", "(x) (x) (x) () () ()", "(x) (x) (x) (x) () ()", "(x) (x) (x) (x) (x) ()", "(x) (x) (x) (x) (x) (x)")
-    embed = Embed(title=message, description="Chances left: {}\n\nWord to guess: {}\n\nLetters guessed: {}".format(chances[wrongGuesses], blanks, guesses))
+    chances = (
+        "() () () () () ()", "(x) () () () () ()", "(x) (x) () () () ()", "(x) (x) (x) () () ()",
+        "(x) (x) (x) (x) () ()",
+        "(x) (x) (x) (x) (x) ()", "(x) (x) (x) (x) (x) (x)")
+    embed = Embed(title=message, description="Chances left: {}\n\nWord to guess: {}\n\nLetters guessed: {}".format(
+        chances[wrongGuesses], blanks, guesses))
     return embed
 
 
@@ -717,7 +888,6 @@ async def slapjackGame(ctx, user):
                        description=" Use p to put a card down. \n Use j to slap the card. \n Use q to quit \n REMEMBER 10 IS A JACK")
         await ctx.send(embed=embed1)
 
-
         # playing the game
         deck = Deck(1)
         deck.shuffle()
@@ -732,9 +902,9 @@ async def slapjackGame(ctx, user):
                 user2.draw(deck)
 
         # DELETE THIS LATER -- JUST FOR ME TO KNOW EACH PERSONS CARDS
-        #user1.showHand()
-        #print("--------------")
-        #user2.showHand()
+        # user1.showHand()
+        # print("--------------")
+        # user2.showHand()
         # the actual game
         cardPile = []
 
@@ -752,7 +922,7 @@ async def slapjackGame(ctx, user):
                 cardPile.append(card)
                 embed = Embed(title=f"card is {card.value} of {card.suit}")
                 await ctx.send(embed=embed)
-                #looks for a slap
+                # looks for a slap
                 msg2 = await client.wait_for('message', timeout=2.0)
                 if msg2.content == "j":
                     if card.value == 10:
@@ -768,7 +938,7 @@ async def slapjackGame(ctx, user):
 
                     else:
                         embed = Embed(title="WOOPS, THAT'S NOT A JACK")
-                        embed2 = Embed(title= "adding 2 cards into the pile")
+                        embed2 = Embed(title="adding 2 cards into the pile")
                         if msg2.author.id == user1.name:
                             cardPile.append(user1.dropCard())
                             cardPile.append(user1.dropCard())
@@ -797,22 +967,226 @@ async def slapjackGame(ctx, user):
                         ans = cursor.fetchone()
                         result = ans[0]
                         cursor.execute(update_sql, (result + 100, ctx.message.author.id))
-            if msg.content == "q":
-                if user1.numcardsinHand() < user2.numcardsinHand():
-                        winner = user2.name
-                elif user1.numcardsinHand() > user2.numcardsinHand():
-                        winner = user1.name
-                embedwinner = Embed(title="Congrats {} Won the Game".format(winner))
-                await ctx.send(embed=embedwinner)
-                embed2 = Embed(title="You won a 100 coins!")
-                await ctx.send(embed=embed2)
-                # add money to winner
-                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
-                ans = cursor.fetchone()
-                result = ans[0]
-                cursor.execute(update_sql, (result + 100, ctx.message.author.id))
-                return
 
+            # if msg.content == "q":
+            #   # do the quit stuff
+
+
+@client.command(aliases=['buy'])
+async def shop(ctx, item=None):
+    gold = discord.Colour(0xFFD700)
+    silver = discord.Colour(0xC0C0C0)
+    rolelist = await ctx.guild.fetch_roles()
+    check = 0
+    for role in rolelist:
+        if str(role) == "VIP" or str(role) == "Valued Member":
+            check = 1
+    if check == 0:
+        await ctx.guild.create_role(name="VIP", colour=gold)
+        await ctx.guild.create_role(name="Valued Member", colour=silver)
+    if item is None:
+        # shop menu
+        menu = ""
+        for x in items:
+            curr = items[x]
+            menu += str(x) + ":\n" + str(curr[0]) + " coins\n" + str(curr[1]) + "\n" + str(curr[2]) + "\n\n"
+        embed = Embed(title="Shop Menu", description=menu)
+        await ctx.send(embed=embed)
+
+    elif item == 'balloon':
+        result = getbalance(ctx)
+        if result < 80:
+            embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+        temp = cursor.fetchone()
+        balloons = temp[0] + 1
+        cursor.execute("UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
+        cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 80, ctx.message.author.id))
+        result = getbalance(ctx)
+
+        embed = Embed(title="good job you bought a balloon",
+                      description="Current coin total: {}\nCurrent balloon total: {}".format(result, balloons))
+
+        await ctx.send(embed=embed)
+
+    elif item == 'vm':
+        result = getbalance(ctx)
+        if result < 10000:
+            embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("SELECT vm FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+        temp = cursor.fetchone()
+        if temp[0] == 1:
+            embed = Embed(title="You already have this title...")
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("UPDATE funusers SET vm = {} where userid = {}".format(1, ctx.message.author.id))
+        cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 10000, ctx.message.author.id))
+
+        member = ctx.message.author
+        role = "Valued Member"
+        await member.add_roles(discord.utils.get(member.guild.roles, name=role))
+
+        result = getbalance(ctx)
+
+        embed = Embed(title="good job you bought the valuable member role",
+                      description="Current coin total: {}\n".format(result))
+        await ctx.send(embed=embed)
+
+    # ACTUALLY ADD THE ROLE
+
+    elif item == 'vip':
+        result = getbalance(ctx)
+        if result < 50000:
+            embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("SELECT vip FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+        temp = cursor.fetchone()
+        if temp[0] == 1:
+            embed = Embed(title="You already have this title...")
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("UPDATE funusers SET vip = {} where userid = {}".format(1, ctx.message.author.id))
+        cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 50000, ctx.message.author.id))
+
+        member = ctx.message.author
+        role = "VIP"
+        await member.add_roles(discord.utils.get(member.guild.roles, name=role))
+
+        result = getbalance(ctx)
+
+        embed = Embed(title="good job you bought the VIP role",
+                      description="Current coin total: {}\n".format(result))
+        await ctx.send(embed=embed)
+
+    # ACTUALLY ADD THE ROLE
+
+    elif item == 'mb':
+        result = getbalance(ctx)
+        if result < 100:
+            embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+            await ctx.send(embed=embed)
+            return
+        cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 100, ctx.message.author.id))
+        rand = random.randint(0, 100)
+        if rand < 14:
+            cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+            temp = cursor.fetchone()
+            balloons = temp[0] + 1
+            cursor.execute( "UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
+            temp = getbalance(ctx)
+            embed = Embed(title="You got a Balloon!", description=f"You now have {balloons} balloons!\n"
+                                                                  f"You now have {temp} coins")
+            await ctx.send(embed=embed)
+        elif rand == 100:
+            cursor.execute("UPDATE funusers SET coins = {} where "
+                           "userid = {}".format(result + 500, ctx.message.author.id))
+            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+            temp = cursor.fetchone()
+            embed = Embed(title="You got the Lucky Chest!", description=f"You earned 500 coins!\n"
+                                                                  f"You now have {temp[0]} coins")
+            await ctx.send(embed=embed)
+
+        else:
+            number = random.randint(50, 200)
+            cursor.execute("UPDATE funusers SET coins = {} where "
+                           "userid = {}".format(result + number, ctx.message.author.id))
+            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+            temp = cursor.fetchone()
+            embed = Embed(title="The fates have rolled and....", description=f"You earned {number} coins!\n"
+                                                                        f"You now have {temp[0]} coins")
+            await ctx.send(embed=embed)
+    # roll to see what they get
+
+    elif item == 'daily':
+
+        # check which multiplier they have and see if they can afford the next
+        cursor.execute("SELECT daily FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+        temp = cursor.fetchone()
+        if temp[0] == 1.0:
+            result = getbalance(ctx)
+            if result < 1000:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute( "UPDATE funusers SET daily = {} where userid = {}".format(1.5, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 1000, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 1.5x your daily income.")
+            await ctx.send(embed=embed)
+        if temp[0] == 1.5:
+            result = getbalance(ctx)
+            if result < 2000:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute("UPDATE funusers SET daily = {} where userid = {}".format(2.0, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 2000, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 2x your daily income.")
+            await ctx.send(embed=embed)
+        if temp[0] == 2.0:
+            result = getbalance(ctx)
+            if result < 5000:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute("UPDATE funusers SET daily = {} where userid = {}".format(3.0, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 5000, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 3x your daily income.")
+            await ctx.send(embed=embed)
+        if temp[0] == 3.0:
+            embed = Embed(title="Sorry!", description="You already have the maximum upgrade.")
+            await ctx.send(embed=embed)
+
+    elif item == 'global':
+
+        cursor.execute("SELECT global FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+        temp = cursor.fetchone()
+        if temp[0] == 1.0:
+            result = getbalance(ctx)
+            if result < 1500:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute("UPDATE funusers SET global = {} where userid = {}".format(1.5, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 1500, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 1.5x your global income."
+                                                        " (daily excluded)")
+            await ctx.send(embed=embed)
+        if temp[0] == 1.5:
+            result = getbalance(ctx)
+            if result < 3000:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute("UPDATE funusers SET global = {} where userid = {}".format(2.0, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 3000, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 2x your global income."
+                                                        " (daily excluded)")
+            await ctx.send(embed=embed)
+        if temp[0] == 2.0:
+            result = getbalance(ctx)
+            if result < 6000:
+                embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+                await ctx.send(embed=embed)
+                return
+            cursor.execute("UPDATE funusers SET global = {} where userid = {}".format(3.0, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
+                           .format(result - 6000, ctx.message.author.id))
+            embed = Embed(title="Success!", description="You will now earn 3x your global income."
+                                                        " (daily excluded)")
+            await ctx.send(embed=embed)
+        if temp[0] == 3.0:
+            embed = Embed(title="Sorry!", description="You already have the maximum upgrade.")
+            await ctx.send(embed=embed)
 @client.command(aliases=['throwballoon'])
 async def throwwaterballoon(ctx, user):
     # gets the user's tag
