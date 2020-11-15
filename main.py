@@ -9,15 +9,21 @@ import csv
 import random
 
 items = {'Balloon': (80, "Throw a water balloon at your friends", "Buy with .shop balloon"),
-	'Valueable Member role': (10000, "Show off how much money you have with this vanity role", "Buy with .shop vm"),
-	'VIP role': (50000, "Show off even more!", "Buy with .shop vip"),
-	'Mystery Box': (100, "A mystery box that contains a random amount of coins or maybe other items", "Buy with .shop mb"),
-	'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop daily"),
-	'Daily Multiplier (2.0x)': (2000, "Multiplies your daily coins by 2. Must have previous multiplier", "Buy with .shop daily"),
-	'Daily Multiplier (3.0x)': (5000, "Multiplies your daily coins by 3. Must have previous multiplier", "Buy with .shop daily"),
-	'Global Multiplier (1.5x)': (1500, "Multiplies all coins you earn by 1.5", "Buy with .shop global"),
-	'Global Multiplier (2.0x)': (3000, "Multiplies all coins you earn by 2. Must have previous multiplier", "Buy with .shop global"),
-	'Global Multiplier (3.0x)': (6000, "Multiplies all coins you earn by 3. Must have previous multiplier", "Buy with .shop global")}
+         'Valueable Member role': (
+         10000, "Show off how much money you have with this vanity role", "Buy with .shop vm"),
+         'VIP role': (50000, "Show off even more!", "Buy with .shop vip"),
+         'Mystery Box': (
+         100, "A mystery box that contains a random amount of coins or maybe other items", "Buy with .shop mb"),
+         'Daily Multiplier (1.5x)': (1000, "Multiplies your daily coins by 1.5", "Buy with .shop daily"),
+         'Daily Multiplier (2.0x)': (
+         2000, "Multiplies your daily coins by 2. Must have previous multiplier", "Buy with .shop daily"),
+         'Daily Multiplier (3.0x)': (
+         5000, "Multiplies your daily coins by 3. Must have previous multiplier", "Buy with .shop daily"),
+         'Global Multiplier (1.5x)': (1500, "Multiplies all coins you earn by 1.5", "Buy with .shop global"),
+         'Global Multiplier (2.0x)': (
+         3000, "Multiplies all coins you earn by 2. Must have previous multiplier", "Buy with .shop global"),
+         'Global Multiplier (3.0x)': (
+         6000, "Multiplies all coins you earn by 3. Must have previous multiplier", "Buy with .shop global")}
 
 
 def db_connect():
@@ -37,7 +43,7 @@ CREATE TABLE funusers (
 	vip INTEGER,
 	daily REAL,
 	global REAL)"""
-#cursor.execute(userData)
+# cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins, balloons, vm, vip, daily, global) VALUES (?, ?, ?, ?, ?, ?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -122,6 +128,7 @@ class Player:
     def addCards(self, pile):
         self.hand.append(pile)
 
+
 # helper function to get users balance of coins
 def getbalance(ctx):
     cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
@@ -169,7 +176,6 @@ def scrammble(word):
 @client.event
 async def on_ready():
     print("bot is ready!")
-
 
 
 # for errors
@@ -328,10 +334,7 @@ async def sendMoney(ctx, arg, message_user):
         cursor.execute("SELECT * FROM funusers")
         rows = cursor.fetchall()
         found = 0
-        print("tag")
-        print(tagNumber)
         for row in rows:
-            print(row)
             if row[0] == int(tagNumber):
                 found = row
         if found == 0 or tagNumber == -99:
@@ -342,12 +345,12 @@ async def sendMoney(ctx, arg, message_user):
         else:
             # updates the recievers account)
             rec_money = found[1] + amount
-            cursor.execute("UPDATE %s SET %s = %d WHERE %s" % (table, field, rec_money, tagNumber))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(rec_money, found[0]))
 
             # updates the senders account
             send_id = ctx.message.author.id
             send_money = getbalance(ctx) - amount
-            cursor.execute("UPDATE %s SET %s = %s WHERE %s" % (table, field, send_money, send_id))
+            cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(newmoney, send_id))
             result = getbalance(ctx)
             embed = Embed(title="Current coin total is:", description="{}".format(result))
             embed2 = Embed(title="Money sent!")
@@ -743,30 +746,58 @@ async def blackjack(ctx, money: int):
 @client.command(aliases=['unscramble'])
 async def unscrambleGame(ctx):
     embed = Embed(title="Starting unscramble game")
-    originalWord = getWord(1)
-    scrammbledWord = scrammble(originalWord)
+    # checks if enough coins
+    result = getbalance(ctx)
+    if result < 20:
+        embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
+        await ctx.send(embed=embed)
+        return
+    temp = cursor.fetchone()
+    cursor.execute("UPDATE funusers SET coins = {} where userid = {}".format(result - 20, ctx.message.author.id))
+    result = getbalance(ctx)
+
+    unscrambleGame.originalWord = getWord(1)
+    scrammbledWord = scrammble(unscrambleGame.originalWord)
     await ctx.send(embed=embed)
-    await ctx.send("Remember to put a .guess in front of your guess!")
-    await ctx.send("UNSCRAMBLE: " + scrammbledWord)
+    embed1 = Embed(title="Remember to put a .guess in front of your guess!")
+    embed2 = Embed(title="UNSCRAMBLE: " + scrammbledWord)
+    await ctx.send(embed=embed1)
+    await ctx.send(embed=embed2)
 
     x = {'value': 3}
 
     @client.command(aliases=['guess'])
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
-        if arg == originalWord:
-            await ctx.channel.send("Good job you got the right word")
-            await ctx.channel.send("You won a 100 coins!")
+        if arg == unscrambleGame.originalWord:
+            embed1 = Embed(title="Good job you got the right word")
+            embed2 = Embed(title="You won a 100 coins!")
+            await ctx.send(embed=embed1)
+            await ctx.send(embed=embed2)
             result = getbalance(ctx)
             cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
-        if arg != originalWord and totalguess != 0:
-            await ctx.channel.send("Wrong guess! Try again ")
+            embedm = Embed(title="Current coin total is:", description="{}".format(result))
+            await ctx.send(embed=embedm)
+            x['value'] = 3
+            totalguess = 3
+            return
+
+        if arg != unscrambleGame.originalWord and totalguess != 0:
+            embed3 = Embed(title="Wrong guess! Try again ")
+            await ctx.send(embed=embed3)
             x['value'] -= 1
             totalguess = x['value']
-            await ctx.channel.send("Only {} chances left".format(totalguess))
+            embed4 = Embed(title="Only {} chances left".format(totalguess))
+            await ctx.send(embed=embed4)
+
         if totalguess == 0:
-            await ctx.channel.send("All out of guesses! Good luck next time!")
+            x['value'] = 3
+            totalguess = 3
+            embed5 = Embed(title="All out of guesses! Good luck next time! \n The word was {}". format(unscrambleGame.originalWord))
+            await ctx.send(embed=embed5)
+            return
+    return
 
 
 @client.command(brief="The classic game of hangman.", description="")
@@ -909,7 +940,7 @@ async def slapjackGame(ctx, user):
         cardPile = []
 
         while user1.numcardsinHand() != 0 or user2.numcardsinHand() != 0:
-            msg = await client.wait_for('message', timeout=60.0)
+            msg = await client.wait_for('message', timeout=2.0)
             # gets a card from that users pile
             if msg.content == "p":
                 if msg.author.id == user1.name:
@@ -923,7 +954,7 @@ async def slapjackGame(ctx, user):
                 embed = Embed(title=f"card is {card.value} of {card.suit}")
                 await ctx.send(embed=embed)
                 # looks for a slap
-                msg2 = await client.wait_for('message', timeout=2.0)
+                msg2 = await client.wait_for('message', timeout=1.0)
                 if msg2.content == "j":
                     if card.value == 10:
                         embed = Embed(title="GOOD JOB, YOU GOT THE JACK...")
@@ -1077,7 +1108,8 @@ async def shop(ctx, item=None):
             cursor.execute("SELECT balloons FROM funusers WHERE userid = {}".format(ctx.message.author.id))
             temp = cursor.fetchone()
             balloons = temp[0] + 1
-            cursor.execute( "UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
+            cursor.execute(
+                "UPDATE funusers SET balloons = {} where userid = {}".format(balloons, ctx.message.author.id))
             temp = getbalance(ctx)
             embed = Embed(title="You got a Balloon!", description=f"You now have {balloons} balloons!\n"
                                                                   f"You now have {temp} coins")
@@ -1088,7 +1120,7 @@ async def shop(ctx, item=None):
             cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
             temp = cursor.fetchone()
             embed = Embed(title="You got the Lucky Chest!", description=f"You earned 500 coins!\n"
-                                                                  f"You now have {temp[0]} coins")
+                                                                        f"You now have {temp[0]} coins")
             await ctx.send(embed=embed)
 
         else:
@@ -1098,7 +1130,7 @@ async def shop(ctx, item=None):
             cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(ctx.message.author.id))
             temp = cursor.fetchone()
             embed = Embed(title="The fates have rolled and....", description=f"You earned {number} coins!\n"
-                                                                        f"You now have {temp[0]} coins")
+                                                                             f"You now have {temp[0]} coins")
             await ctx.send(embed=embed)
     # roll to see what they get
 
@@ -1113,7 +1145,7 @@ async def shop(ctx, item=None):
                 embed = Embed(title="Sorry not enough coins!", description="Current coin total: {}".format(result))
                 await ctx.send(embed=embed)
                 return
-            cursor.execute( "UPDATE funusers SET daily = {} where userid = {}".format(1.5, ctx.message.author.id))
+            cursor.execute("UPDATE funusers SET daily = {} where userid = {}".format(1.5, ctx.message.author.id))
             cursor.execute("UPDATE funusers SET coins = {} where userid = {}"
                            .format(result - 1000, ctx.message.author.id))
             embed = Embed(title="Success!", description="You will now earn 1.5x your daily income.")
@@ -1187,6 +1219,8 @@ async def shop(ctx, item=None):
         if temp[0] == 3.0:
             embed = Embed(title="Sorry!", description="You already have the maximum upgrade.")
             await ctx.send(embed=embed)
+
+
 @client.command(aliases=['throwballoon'])
 async def throwwaterballoon(ctx, user):
     # gets the user's tag
