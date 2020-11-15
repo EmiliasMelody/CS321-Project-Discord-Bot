@@ -126,7 +126,8 @@ class Player:
         return x
 
     def addCards(self, pile):
-        self.hand.append(pile)
+        for card in pile:
+            self.hand.append(card)
 
 
 # helper function to get users balance of coins
@@ -911,17 +912,23 @@ async def slapjackGame(ctx, user):
             Noembed = Embed(title="Cannot play game : Insufficient funds")
             await ctx.send(embed=Noembed)
             return
+
         cursor.execute(update_sql, (firstresult - 50, ctx.message.author.id))
         result = getbalance(ctx)
         embed = Embed(title="Current coin total is:", description="{}".format(result))
         await ctx.send(embed=embed)
+
         embed1 = Embed(title="Welcome to Slap jack!",
-                       description=" Use p to put a card down. \n Use j to slap the card. \n Use q to quit \n REMEMBER 10 IS A JACK")
+                       description=" Use .p to put a card down. \n Use .s to slap the card. \n Use .q to quit \n REMEMBER 10 IS A JACK")
         await ctx.send(embed=embed1)
 
         # playing the game
         deck = Deck(1)
         deck.shuffle()
+
+        user1name = ""
+        user2name = ""
+
         user1 = Player(ctx.message.author.id)
         user2 = Player(tagNumber)
 
@@ -932,75 +939,93 @@ async def slapjackGame(ctx, user):
             if card % 2 != 0:
                 user2.draw(deck)
 
-        # DELETE THIS LATER -- JUST FOR ME TO KNOW EACH PERSONS CARDS
-        # user1.showHand()
-        # print("--------------")
-        # user2.showHand()
+
         # the actual game
         cardPile = []
 
-        while user1.numcardsinHand() != 0 or user2.numcardsinHand() != 0:
-            msg = await client.wait_for('message', timeout=2.0)
-            # gets a card from that users pile
-            if msg.content == "p":
+        while user1.numcardsinHand() == 0 or user2.numcardsinHand():
+            msg = await client.wait_for('message', timeout=120.0)
+            if ".q" == msg.content:
+                if user1.numcardsinHand() < user2.numcardsinHand():
+                    winner = user2.name
+                    winnerName = user2name
+                elif user1.numcardsinHand() > user2.numcardsinHand():
+                    winner = user1.name
+                    winnerName = user1name
+                embedwinner = Embed(title="Congrats {} Won the Game".format(winnerName))
+                await ctx.send(embed=embedwinner)
+                embed2 = Embed(title="You won a 100 coins!")
+                await ctx.send(embed=embed2)
+                # add money to winner
+                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
+                ans = cursor.fetchone()
+                result = ans[0]
+                cursor.execute(update_sql, (result + 100, winner))
+                return
+
+            if ".p" == msg.content:
+                # put a card down
                 if msg.author.id == user1.name:
-                    print("USER 1")
+                    user1name = ctx.message.author.display_name
                     card = user1.dropCard()
                 if msg.author.id == user2.name:
-                    print("USER 2")
+                    user2name = msg.author.display_name
                     card = user2.dropCard()
                 # shows card in discord
                 cardPile.append(card)
                 embed = Embed(title=f"card is {card.value} of {card.suit}")
                 await ctx.send(embed=embed)
+
+            if ".s" == msg.content:
                 # looks for a slap
-                msg2 = await client.wait_for('message', timeout=1.0)
-                if msg2.content == "j":
-                    if card.value == 10:
-                        embed = Embed(title="GOOD JOB, YOU GOT THE JACK...")
-                        embed2 = Embed(title="you get all the cards in the pile")
-                        if msg2.author.id == user1.name:
-                            user1.addCards(cardPile)
-                        if msg2.author.id == user2.name:
-                            user2.addCards(cardPile)
-                        cardPile = []
-                        await ctx.send(embed=embed)
-                        await ctx.send(embed=embed2)
+                if card.value == 10:
+                    embed = Embed(title="GOOD JOB, YOU GOT THE JACK...")
+                    embed2 = Embed(title="you get all the cards in the pile")
+                    if msg.author.id == user1.name:
+                        user1.addCards(cardPile)
+                    if msg.author.id == user2.name:
+                        user2.addCards(cardPile)
+                    cardPile = []
+                    await ctx.send(embed=embed)
+                    await ctx.send(embed=embed2)
 
-                    else:
-                        embed = Embed(title="WOOPS, THAT'S NOT A JACK")
-                        embed2 = Embed(title="adding 2 cards into the pile")
-                        if msg2.author.id == user1.name:
-                            cardPile.append(user1.dropCard())
-                            cardPile.append(user1.dropCard())
-                        if msg2.author.id == user2.name:
-                            cardPile.append(user2.dropCard())
-                            cardPile.append(user2.dropCard())
-                        await ctx.send(embed=embed)
-                        await ctx.send(embed=embed2)
-                    # CARDS LEFT
-                    embeduser1 = Embed(title="{}: you have {} cards left".format(user1.name, user1.numcardsinHand()))
-                    embeduser2 = Embed(title="{}: you have {} cards left".format(user2.name, user2.numcardsinHand()))
-                    await ctx.send(embed=embeduser1)
-                    await ctx.send(embed=embeduser2)
-                    # if someone has no cards left - the game is over
-                    if user1.numcardsinHand() == 0 or user2.numcardsinHand():
-                        if user1.numcardsinHand() == 0:
-                            winner = user2.name
-                        elif user2.numcardsinHand() == 0:
-                            winner = user1.name
-                        embedwinner = Embed(title="Congrats {} Won the Game".format(winner))
-                        await ctx.send(embed=embedwinner)
-                        embed2 = Embed(title="You won a 100 coins!")
-                        await ctx.send(embed=embed2)
-                        # add money to winner
-                        cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
-                        ans = cursor.fetchone()
-                        result = ans[0]
-                        cursor.execute(update_sql, (result + 100, ctx.message.author.id))
+                else:
+                    embed = Embed(title="WHOOPS, THAT'S NOT A JACK")
+                    embed2 = Embed(title="adding 2 cards into the pile")
+                    if msg.author.id == user1.name:
+                        cardPile.append(user1.dropCard())
+                        cardPile.append(user1.dropCard())
+                    if msg.author.id == user2.name:
+                        cardPile.append(user2.dropCard())
+                        cardPile.append(user2.dropCard())
+                    await ctx.send(embed=embed)
+                    await ctx.send(embed=embed2)
+                # CARDS LEFT
+                embeduser1 = Embed(title="{}: you have {} cards left".format(user1name, user1.numcardsinHand()))
+                embeduser2 = Embed(title="{}: you have {} cards left".format(user2name, user2.numcardsinHand()))
+                await ctx.send(embed=embeduser1)
+                await ctx.send(embed=embeduser2)
+                # if someone has no cards left - the game is over
+        if user1.numcardsinHand() == 0 or user2.numcardsinHand():
+            if user1.numcardsinHand() == 0:
+                winner = user2.name
+                winnerName = user2name
+            elif user2.numcardsinHand() == 0:
+                winner = user1.name
+                winnerName = user1name
+            embedwinner = Embed(title="Congrats {} Won the Game".format(winnerName))
+            await ctx.send(embed=embedwinner)
+            embed2 = Embed(title="You won a 100 coins!")
+            await ctx.send(embed=embed2)
+            # add money to winner
+            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
+            ans = cursor.fetchone()
+            result = ans[0]
+            cursor.execute(update_sql, (result + 100, winner))
+            return
 
-            # if msg.content == "q":
-            #   # do the quit stuff
+
+
 
 
 @client.command(aliases=['buy'])
