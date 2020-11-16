@@ -1039,13 +1039,9 @@ async def slapjackGame(ctx, user):
                 winnerName = user1name
             embedwinner = Embed(title="Congrats {} Won the Game".format(winnerName))
             await ctx.send(embed=embedwinner)
-            embed2 = Embed(title="You won a 100 coins!")
+            coins = giveCoins(winner, 100)
+            embed2 = Embed(title="You won a {} coins!".format(coins))
             await ctx.send(embed=embed2)
-            # add money to winner
-            cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
-            ans = cursor.fetchone()
-            result = ans[0]
-            cursor.execute(update_sql, (result + 100, winner))
             return
 
 
