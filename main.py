@@ -43,7 +43,7 @@ CREATE TABLE funusers (
 	vip INTEGER,
 	daily REAL,
 	global REAL)"""
-# cursor.execute(userData)
+#cursor.execute(userData)
 funuser_sql = "INSERT INTO funusers (userid, coins, balloons, vm, vip, daily, global) VALUES (?, ?, ?, ?, ?, ?, ?)"
 update_sql = "UPDATE funusers SET coins = ? where userid = ?"
 client = commands.Bot(command_prefix=".")
@@ -136,6 +136,23 @@ def getbalance(ctx):
     result = cursor.fetchone()
     return result[0]
 
+#helper to get the global coin modifier of a user
+def globalMod(id):
+    cursor.execute("SELECT global FROM funusers WHERE userid = {}".format(id))
+    result = cursor.fetchone()
+    return result[0]
+
+#only used for instances in which the global coin multiplier is used
+#we use id here instead of ctx because we have multiplayer games and ctx would only provide player 1
+def giveCoins(id, baseValue):
+	result = globalMod(id)
+	coins = baseValue * result
+	cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(id))
+	temp = cursor.fetchone()
+	result = temp[0]
+	cursor.execute(update_sql, (result + coins, id))
+	return coins
+
 
 # used in the unscramble game gets a random word
 def getWord(minLength):
@@ -210,20 +227,31 @@ async def on_message(message):
 # need to use it to save any coin updates
 @client.command(brief="Shuts down the Bot.", description="A safe way to manually shut down the bot. ONLY AVAILABLE TO THE SERVER OWNER.")
 @commands.is_owner()
+#swap this out with the previous line for debugging if not the server owner
+#@commands.has_permissions(administrator=True)
 async def shutdown(ctx):
     connection.commit()
     await ctx.bot.logout()
+
+
+#helper to get the daily coin modifier of a user
+def dailyMod(ctx):
+    cursor.execute("SELECT daily FROM funusers WHERE userid = {}".format(ctx.message.author.id))
+    result = cursor.fetchone()
+    return result[0]
 
 
 # daily coins
 @commands.cooldown(1, 86400, commands.BucketType.user)
 @client.command(brief="Gives you your daily coins.", description="Can be used once per day to give you 200 coins.")
 async def daily(ctx):
-    result = getbalance(ctx)
-    cursor.execute(update_sql, (result + 200, ctx.message.author.id))
-    result = getbalance(ctx)
-    embed = Embed(title="Current coin total is:", description="{}".format(result))
-    await ctx.send(embed=embed)
+	mod = dailyMod(ctx)
+	result = getbalance(ctx)
+	coins = 200 * mod
+	cursor.execute(update_sql, (result + coins, ctx.message.author.id))
+	result = getbalance(ctx)
+	embed = Embed(title="Current coin total is:", description="{}".format(result))
+	await ctx.send(embed=embed)
 
 
 # get your current balance
@@ -772,12 +800,11 @@ async def unscrambleGame(ctx):
     async def unscrambleGuess(ctx, arg):
         totalguess = x['value']
         if arg == unscrambleGame.originalWord:
+            coins = giveCoins(ctx.message.author.id, 100)
             embed1 = Embed(title="Good job you got the right word")
-            embed2 = Embed(title="You won a 100 coins!")
+            embed2 = Embed(title="You won a {} coins!".format(coins))
             await ctx.send(embed=embed1)
             await ctx.send(embed=embed2)
-            result = getbalance(ctx)
-            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
             result = getbalance(ctx)
             embedm = Embed(title="Current coin total is:", description="{}".format(result))
             await ctx.send(embed=embedm)
@@ -872,8 +899,8 @@ async def hangman(ctx):
 
         if correctGuesses >= len(word):
             done = 1
-            cursor.execute(update_sql, (result + 100, ctx.message.author.id))
-            embed = hangmanPrint("Congrats, you won and earned 100 coins!", wrongGuesses, blanks, guesses)
+            coins = giveCoins(ctx.message.author.id, 100)
+            embed = hangmanPrint("Congrats, you won and earned {} coins!".format(coins), wrongGuesses, blanks, guesses)
             await ctx.send(embed=embed)
             break
         else:
@@ -955,13 +982,9 @@ async def slapjackGame(ctx, user):
                     winnerName = user1name
                 embedwinner = Embed(title="Congrats {} Won the Game".format(winnerName))
                 await ctx.send(embed=embedwinner)
-                embed2 = Embed(title="You won a 100 coins!")
+                coins = giveCoins(winner, 100)
+                embed2 = Embed(title="You won a {} coins!".format(coins))
                 await ctx.send(embed=embed2)
-                # add money to winner
-                cursor.execute("SELECT coins FROM funusers WHERE userid = {}".format(winner))
-                ans = cursor.fetchone()
-                result = ans[0]
-                cursor.execute(update_sql, (result + 100, winner))
                 return
 
             if ".p" == msg.content:
