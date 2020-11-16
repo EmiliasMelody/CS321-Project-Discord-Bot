@@ -27,7 +27,7 @@ items = {'Balloon': (80, "Throw a water balloon at your friends", "Buy with .sho
 
 
 def db_connect():
-    return sqlite3.connect(r'C:\Users\Connor\PycharmProjects\pythonProject\database.sqlite3')
+    return sqlite3.connect(r'C:\Users\Nathan\Documents\CS321\database.sqlite3')
 
 
 bot = commands.Bot(command_prefix='$')
@@ -208,7 +208,7 @@ async def on_message(message):
 # shutdowns down bot.
 # IMPORTANT
 # need to use it to save any coin updates
-@client.command()
+@client.command(brief="Shuts down the Bot.", description="A safe way to manually shut down the bot. ONLY AVAILABLE TO THE SERVER OWNER.")
 @commands.is_owner()
 async def shutdown(ctx):
     connection.commit()
@@ -216,7 +216,8 @@ async def shutdown(ctx):
 
 
 # daily coins
-@client.command()
+@commands.cooldown(1, 86400, commands.BucketType.user)
+@client.command(brief="Gives you your daily coins.", description="Can be used once per day to give you 200 coins.")
 async def daily(ctx):
     result = getbalance(ctx)
     cursor.execute(update_sql, (result + 200, ctx.message.author.id))
@@ -226,7 +227,7 @@ async def daily(ctx):
 
 
 # get your current balance
-@client.command(aliases=['bal'])
+@client.command(aliases=['bal'], brief="Tells you how many coins you have.", description="Tells you how many coins you have. Can also be called using .bal")
 async def balance(ctx):
     result = getbalance(ctx)
     embed = Embed(title="Current coin total is:", description="{}".format(result))
@@ -234,7 +235,7 @@ async def balance(ctx):
 
 
 # flip a coin 50/50, gets double if win
-@client.command()
+@client.command(brief="Flip a coin, win coins.", description="Flip a coin. If you guess which side it lands on right, you double your bet!\n\n<money> -- How much you want to bet\n<side> -- Which side you think it will land on. Can format as 'heads' and 'tails' or 'h' and 't'.")
 async def coin(ctx, money: int, side):
     result = getbalance(ctx)
     if result < money:
@@ -274,7 +275,7 @@ async def coin(ctx, money: int, side):
 
 
 # role a 5 or a 6 to triple money
-@client.command()
+@client.command(brief="Roll the dice, win coins.", description="Bet however much you want. On a roll of a 5 or a 6, you double your wager!\n\n<money> -- How much you want to bet.")
 async def dice(ctx, money: int):
     result = getbalance(ctx)
     if result < money:
@@ -300,7 +301,7 @@ async def dice(ctx, money: int):
 
 
 # for debugging purposes, lets you set your coins
-@client.command()
+@client.command(brief="FOR TESTING PURPOSES ONLY", description="Lets you set how many coins you have. Must be an admin on the server.")
 @commands.has_permissions(administrator=True)
 async def setbal(ctx, money: int):
     cursor.execute(update_sql, (money, ctx.message.author.id))
@@ -308,7 +309,7 @@ async def setbal(ctx, money: int):
     await ctx.send("Current bal is now: {} coins.".format(result))
 
 
-@client.command(aliases=['sendmoney'])
+@client.command(aliases=['sendmoney'], brief="Send money to your friends!", description="Allows you to send coins to another user.\n\n<arg> -- how much to send\n<message_user> -- the person you are sending money to")
 async def sendMoney(ctx, arg, message_user):
     amount = int(arg)
     # gets the user's tag
@@ -359,7 +360,7 @@ async def sendMoney(ctx, arg, message_user):
             await ctx.send(embed=embed2)
 
 
-@client.command()
+@client.command(brief="Go head to head with someone in this classic card game.", description="Play against the bot or another user. On each round, players flip a card from their deck. The player with the higher card wins that round. To play against the bot, put nothing in the [message_user] field.\n\n<money> -- how much you want to bet on the game\n<message_user> -- put someone's name here if you want to play with them")
 async def war(ctx, money, message_user=None):
     deck = Deck(0)
     deck.shuffle()
@@ -631,7 +632,7 @@ async def war(ctx, money, message_user=None):
                 await ctx.send(embed=embedfinish)
 
 
-@client.command(aliases=['black'])
+@client.command(aliases=['black'], brief="Blackjack", description="Get as close to 21 as possible without going over.\n\n<money> -- how much you want to bet")
 async def blackjack(ctx, money: int):
     result = getbalance(ctx)
     if result < money:
@@ -744,7 +745,7 @@ async def blackjack(ctx, money: int):
                                                           and message.channel == ctx.channel)
 
 
-@client.command(aliases=['unscramble'])
+@client.command(aliases=['unscramble'], brief="Try to unscramble the given word.", description="You get 3 tries to guess the word. To make a guess, simply type '.guess' followed by your guess (e.g. if you wanted to guess the word 'example', you would type '.guess example'). Costs 20 coins to play. You can earn 100 coins for guessing correctly.")
 async def unscrambleGame(ctx):
     embed = Embed(title="Starting unscramble game")
     # checks if enough coins
@@ -801,7 +802,7 @@ async def unscrambleGame(ctx):
     return
 
 
-@client.command(brief="The classic game of hangman.", description="")
+@client.command(brief="The classic game of hangman.", description="Guess letters one at a time until all of the word is revealed. You get up to 6 incorrect guesses. Costs 20 coins to play and you get 100 coins if you win. After the game begins, you can just type the letter you want to guess.")
 async def hangman(ctx):
     # checks if the user has enough coins
     result = getbalance(ctx)
@@ -891,7 +892,7 @@ def hangmanPrint(message, wrongGuesses, blanks, guesses):
     return embed
 
 
-@client.command(aliases=['slapjack'])
+@client.command(aliases=['slapjack'], brief="A fast-paced card game all about reaction time.", description="A game for 2 players. Each player gets half of the deck and takes turns placing cards down. Once a jack is played, the first person to 'slap' (type .s) gets to keep that card and all cards played before. The first player to run out of cards loses. Both players must pay 50 coins to play, the winner gets 100 coins.\n\n<user> -- the person you want to play with")
 async def slapjackGame(ctx, user):
     # gets the user's tag
     tag = user
@@ -1028,7 +1029,7 @@ async def slapjackGame(ctx, user):
 
 
 
-@client.command(aliases=['buy'])
+@client.command(aliases=['buy'], brief="The item shop.", description="Here is where you can spend all the coins you've earned! Type '.shop' with nothing else to see the menu, or '.shop' followed by an item name to buy that item.")
 async def shop(ctx, item=None):
     gold = discord.Colour(0xFFD700)
     silver = discord.Colour(0xC0C0C0)
@@ -1246,7 +1247,7 @@ async def shop(ctx, item=None):
             await ctx.send(embed=embed)
 
 
-@client.command(aliases=['throwballoon'])
+@client.command(aliases=['throwballoon'], brief="Throw a water balloon at somebody!", description="Must have at least one balloon in your inventory. Can be bought from the shop for 80 coins.")
 async def throwwaterballoon(ctx, user):
     # gets the user's tag
     tag = user
