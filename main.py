@@ -1298,4 +1298,4 @@ async def throwwaterballoon(ctx, user):
     await ctx.send(file=discord.File('waterballoon.gif'))
 
 
-client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.FjIBu-8Bk4eOLMpViazU242koZg')
+client.run('NzY0MTgwMzU1MzU0ODUzNDE2.X4Cgag.cHZlrlH6jsYS7nkjVgBVnshM2JU')
