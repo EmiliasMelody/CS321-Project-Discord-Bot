@@ -176,7 +176,7 @@ def getWord(minLength):
             else:
                 # increments the counter
                 counter += 1
-    print(word)
+    #print(word)
     return word
 
 
